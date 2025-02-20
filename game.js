@@ -7,10 +7,10 @@ if (!canvas) {
 }
 
 const player = {
-    x: 100,
-    y: 230,
-    width: 30,
-    height: 30,
+    x: canvas.width * 0.3,
+    y: 230,  // Lower starting position (was 180)
+    width: 40,
+    height: 40,
     velocity: 0,
     jumping: false,
     rotation: 0,
@@ -35,6 +35,7 @@ let countdown = 0;
 let countdownTimer = null;
 let hasWon = false;
 let animationFrameId = null;
+let winTimer = null;
 
 // Add particle system
 const particles = [];
@@ -88,7 +89,7 @@ const buttonPos = {
 
 // Add at the top with other state variables
 let hasInfiniteJump = false;
-const INFINITE_JUMP_COST = 200;
+const INFINITE_JUMP_COST = 300;
 
 // Add mouseDown state variable at the top with other state variables
 let isMouseDown = false;
@@ -142,23 +143,23 @@ function updateInfiniteJumpButton() {
 function createObstacle() {
     const lastObstacle = obstacles[obstacles.length - 1];
     
-    // Calculate maximum possible jump distance based on physics
-    const maxJumpDistance = 200;
-    const minJumpDistance = 140;
+    // Increase jump distances for more challenge
+    const maxJumpDistance = 280;  // Increased from 250
+    const minJumpDistance = 220;  // Increased from 180
     
     // Make platforms with more space between them
     const minX = lastObstacle ? lastObstacle.x + minJumpDistance : 100;
     const maxX = lastObstacle ? lastObstacle.x + maxJumpDistance : canvas.width - 300;
     
-    // More controlled height variations
-    const minHeight = lastObstacle ? Math.max(150, lastObstacle.y - 60) : 280;  // Adjusted height range
-    const maxHeight = lastObstacle ? Math.min(280, lastObstacle.y + 40) : 280;
+    // Keep current height range
+    const minHeight = lastObstacle ? Math.max(250, lastObstacle.y - 40) : 330;
+    const maxHeight = lastObstacle ? Math.min(370, lastObstacle.y + 40) : 330;
     
     const obstacle = {
         type: OBSTACLE_TYPES.PLATFORM,
         x: Math.random() * (maxX - minX) + minX,
         y: Math.random() * (maxHeight - minHeight) + minHeight,
-        width: 150,  // Wider platforms
+        width: 150,
         height: 15,
         spikes: [],
         scored: false
@@ -447,7 +448,7 @@ function drawMenu() {
     ctx.textAlign = 'left';  // Reset text alignment
 }
 
-// Modify handleJump function to remove double jump
+// Modify handleJump function to use correct ground height
 function handleJump() {
     if (!isGameStarted) {
         startGame();
@@ -458,19 +459,19 @@ function handleJump() {
         return;
     }
 
-    if (hasWon) {
+    if (hasWon && !winTimer) {  // Only allow restart after timer
         hasWon = false;
         resetGame();
         return;
     }
 
-    // Check if on platform or ground
+    // Check if on platform or ground (update ground check to match lava height)
     const onPlatform = obstacles.some(obstacle => 
         player.y + player.height >= obstacle.y - 5 && 
         player.y + player.height <= obstacle.y + 5 && 
         player.x + player.width > obstacle.x && 
         player.x < obstacle.x + obstacle.width
-    ) || player.y + player.height >= 329;
+    ) || player.y + player.height >= 530;  // Changed from 329 to 530
 
     // Only allow jump if on platform/ground or have infinite jump
     if (hasInfiniteJump || onPlatform) {
@@ -505,9 +506,9 @@ function update() {
     player.velocity = Math.min(player.velocity, MAX_VELOCITY);
     player.y += player.velocity;
 
-    // Check for lava collision (330 is lava height)
-    if (player.y + player.height >= 330) {
-        player.y = 330 - player.height; // Snap to lava surface
+    // Check for lava collision at new height
+    if (player.y + player.height >= 530) {
+        player.y = 530 - player.height;
         startCountdown();
         return;
     }
@@ -563,6 +564,11 @@ function update() {
         coins += 50;  // Award 50 coins for winning
         localStorage.setItem('coins', coins.toString());
         hasWon = true;
+        if (!winTimer) {
+            winTimer = setTimeout(() => {
+                winTimer = null;
+            }, 3000);
+        }
         return;
     }
 }
@@ -580,13 +586,13 @@ function draw() {
         return;
     }
     
-    // Draw lava floor
-    const lavaGradient = ctx.createLinearGradient(0, 330, 0, canvas.height);
-    lavaGradient.addColorStop(0, '#ff4500');  // Orange-red
-    lavaGradient.addColorStop(0.5, '#ff0000'); // Bright red
-    lavaGradient.addColorStop(1, '#cc0000');  // Dark red
+    // Draw lava floor at new height
+    const lavaGradient = ctx.createLinearGradient(0, 530, 0, canvas.height);
+    lavaGradient.addColorStop(0, '#ff4500');
+    lavaGradient.addColorStop(0.5, '#ff0000');
+    lavaGradient.addColorStop(1, '#cc0000');
     ctx.fillStyle = lavaGradient;
-    ctx.fillRect(0, 330, canvas.width, canvas.height - 330);
+    ctx.fillRect(0, 530, canvas.width, canvas.height - 530);
 
     // Update and draw lava particles
     if (Math.random() < 0.3) createLavaParticle();
@@ -615,13 +621,6 @@ function draw() {
         }
     });
     
-    // Draw ground
-    const groundGradient = ctx.createLinearGradient(0, 328, 0, 332);
-    groundGradient.addColorStop(0, '#4CAF50');
-    groundGradient.addColorStop(1, '#45a049');
-    ctx.fillStyle = groundGradient;
-    ctx.fillRect(0, 330, canvas.width, 2);
-    
     drawPlayer();
     drawObstacles();
     drawScore();
@@ -631,11 +630,15 @@ function draw() {
     if (isPaused) {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '28px Arial';
-        ctx.fillText('PAUSED', 350, 200);
+        ctx.textAlign = 'center';  // Center align text
+        ctx.fillText('PAUSED', canvas.width/2, canvas.height/2);  // Center of canvas
+        ctx.textAlign = 'left';  // Reset alignment
     } else if (countdown > 0) {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '28px Arial';
-        ctx.fillText(`Restarting in ${countdown}...`, 300, 200);
+        ctx.textAlign = 'center';  // Center align text
+        ctx.fillText(`Restarting in ${countdown}...`, canvas.width/2, canvas.height/2);  // Center of canvas
+        ctx.textAlign = 'left';  // Reset alignment
     }
 
     if (hasWon) {
@@ -645,9 +648,11 @@ function draw() {
         
         ctx.fillStyle = '#FFD700'; // Gold color
         ctx.font = '48px Arial';
-        ctx.fillText('You Won!', 300, 180);
+        ctx.textAlign = 'center';
+        ctx.fillText('You Won!', canvas.width/2, canvas.height/2 - 25);
         ctx.font = '24px Arial';
-        ctx.fillText('Press Space to Play Again', 280, 230);
+        ctx.fillText('Press Space to Play Again', canvas.width/2, canvas.height/2 + 25);
+        ctx.textAlign = 'left';
         return;
     }
 }
@@ -685,6 +690,13 @@ window.onload = function() {
     draw();
     gameLoop();
     createInfiniteJumpButton();
+
+    // Add page visibility handler
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && isGameStarted && !isPaused) {
+            togglePause();  // Auto-pause when page is hidden
+        }
+    });
 };
 
 // Add keyboard control function
@@ -717,7 +729,7 @@ function resetGame() {
     currentGameSpeed = INITIAL_GAME_SPEED;  // Reset speed
     currentPlatformDistance = INITIAL_PLATFORM_DISTANCE;  // Reset platform distance
     obstacles.length = 0;
-    player.y = 230;
+    player.y = 230;  // Update reset position (was 180)
     player.velocity = 0;
     player.rotation = 0;
     particles.length = 0;
@@ -726,6 +738,10 @@ function resetGame() {
     createInitialPlatform();
     createObstacle();
     updateButtons();
+    if (winTimer) {
+        clearTimeout(winTimer);
+        winTimer = null;
+    }
 }
 
 // Add new function to toggle pause
@@ -763,9 +779,9 @@ function startCountdown() {
 function createInitialPlatform() {
     obstacles.push({
         type: OBSTACLE_TYPES.PLATFORM,
-        x: 50,
-        y: 280,
-        width: 300,  // Much wider starting platform (changed from 150)
+        x: canvas.width * 0.25,
+        y: 330,  // Lower starting platform (was 280)
+        width: 400,
         height: 15,
         spikes: [],
         scored: false
