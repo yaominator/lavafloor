@@ -1,6 +1,11 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+if (!canvas) {
+    console.error('Canvas not found!');
+    throw new Error('Canvas not found!');
+}
+
 const player = {
     x: 100,
     y: 230,
@@ -13,14 +18,14 @@ const player = {
 };
 
 const obstacles = [];
-const gravity = 0.4;
-const jumpForce = -8;
-const INITIAL_GAME_SPEED = 3;
-const MAX_GAME_SPEED = 12;
-const SPEED_INCREMENT = 0.1;
-const INITIAL_PLATFORM_DISTANCE = 200;
-const MIN_PLATFORM_DISTANCE = 150;
-const MAX_PLATFORM_DISTANCE = 350;
+const gravity = 0.2;
+const jumpForce = -6;
+const INITIAL_GAME_SPEED = 2.5;
+const MAX_GAME_SPEED = 8;
+const SPEED_INCREMENT = 0.05;
+const INITIAL_PLATFORM_DISTANCE = 250;
+const MIN_PLATFORM_DISTANCE = 180;
+const MAX_PLATFORM_DISTANCE = 300;
 let score = 0;
 let gameOver = false;
 let backgroundOffset = 0;
@@ -29,6 +34,7 @@ let isPaused = false;
 let countdown = 0;
 let countdownTimer = null;
 let hasWon = false;
+let animationFrameId = null;
 
 // Add particle system
 const particles = [];
@@ -65,54 +71,107 @@ const OBSTACLE_TYPES = {
 let currentGameSpeed = INITIAL_GAME_SPEED;
 let currentPlatformDistance = INITIAL_PLATFORM_DISTANCE;
 
-// Modify createObstacle function
+// Add these constants near the top with other constants
+const MAX_VELOCITY = 7;
+const MIN_PLATFORMS = 5; // Minimum number of platforms to maintain
+
+// Add at the top with other state variables
+let coins = parseInt(localStorage.getItem('coins')) || 0; // Persist coins between sessions
+
+// Add these variables at the top with other state variables
+const buttonPos = {
+    x: canvas.width / 2 - 100,
+    y: 50,
+    width: 200,
+    height: 40
+};
+
+// Add at the top with other state variables
+let hasInfiniteJump = false;
+const INFINITE_JUMP_COST = 300;
+
+// Add mouseDown state variable at the top with other state variables
+let isMouseDown = false;
+
+// Add button to HTML
+function createInfiniteJumpButton() {
+    const button = document.createElement('button');
+    button.id = 'infiniteJumpBtn';
+    button.style.position = 'fixed';  // Changed to fixed
+    button.style.top = '50px';        // Move down more
+    button.style.left = '50%';
+    button.style.transform = 'translateX(-50%)';
+    button.style.padding = '15px 30px';  // Even more padding
+    button.style.fontSize = '24px';       // Bigger text
+    button.style.fontWeight = 'bold';
+    button.style.border = '3px solid white';  // Add border
+    button.style.borderRadius = '10px';
+    button.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+    button.style.zIndex = '9999';        // Make sure it's on very top
+    button.style.backgroundColor = '#4CAF50';
+    button.style.color = 'white';
+    button.style.textShadow = '2px 2px 4px rgba(0,0,0,0.3)';  // Text shadow
+    button.style.fontFamily = 'Arial, sans-serif';
+    button.innerHTML = `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
+    button.onclick = purchaseInfiniteJump;
+    document.body.appendChild(button);
+}
+
+// Add purchase function
+function purchaseInfiniteJump() {
+    if (coins >= INFINITE_JUMP_COST && !hasInfiniteJump) {
+        coins -= INFINITE_JUMP_COST;
+        hasInfiniteJump = true;
+        localStorage.setItem('coins', coins.toString());
+        updateInfiniteJumpButton();
+    }
+}
+
+// Update button appearance
+function updateInfiniteJumpButton() {
+    const button = document.getElementById('infiniteJumpBtn');
+    if (button) {
+        button.innerHTML = hasInfiniteJump ? 
+            '<span style="font-size: 24px">🚀 INFINITE JUMP ACTIVE!</span>' : 
+            `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
+        button.style.cursor = (coins >= INFINITE_JUMP_COST && !hasInfiniteJump) ? 'pointer' : 'not-allowed';
+    }
+}
+
+// Modify createObstacle function to create bigger spikes
 function createObstacle() {
     const lastObstacle = obstacles[obstacles.length - 1];
     
-    // Calculate platform distance based on current game speed
-    currentPlatformDistance = Math.min(
-        MAX_PLATFORM_DISTANCE,
-        INITIAL_PLATFORM_DISTANCE + (currentGameSpeed * 15)
-    );
+    // Calculate maximum possible jump distance based on physics
+    const maxJumpDistance = 200;
+    const minJumpDistance = 140;
     
-    // Ensure minimum distance
-    currentPlatformDistance = Math.max(MIN_PLATFORM_DISTANCE, currentPlatformDistance);
+    // Make platforms with more space between them
+    const minX = lastObstacle ? lastObstacle.x + minJumpDistance : 100;
+    const maxX = lastObstacle ? lastObstacle.x + maxJumpDistance : canvas.width - 300;
     
-    const minX = lastObstacle ? lastObstacle.x + currentPlatformDistance : canvas.width;
-    
-    const platformHeight = Math.random() * 30 + 50;
-    
-    const spikePattern = Math.floor(Math.random() * 3);
+    // More controlled height variations
+    const minHeight = lastObstacle ? Math.max(150, lastObstacle.y - 60) : 280;  // Adjusted height range
+    const maxHeight = lastObstacle ? Math.min(280, lastObstacle.y + 40) : 280;
     
     const obstacle = {
         type: OBSTACLE_TYPES.PLATFORM,
-        x: minX,
-        y: 330 - platformHeight,
-        width: 200,  // Increased from 120 to 200
+        x: Math.random() * (maxX - minX) + minX,
+        y: Math.random() * (maxHeight - minHeight) + minHeight,
+        width: 150,  // Wider platforms
         height: 15,
-        spikes: []
+        spikes: [],
+        scored: false
     };
 
-    // Adjust spike positions for longer platform
-    switch(spikePattern) {
-        case 1: // Middle spike
-            obstacle.spikes.push({
-                relativeX: 85,  // Adjusted for center of longer platform
-                width: 30,
-                height: 20
-            });
-            break;
-        case 2: // Edge spikes
-            obstacle.spikes.push({
-                relativeX: 20,  // Left edge
-                width: 20,
-                height: 15
-            }, {
-                relativeX: 160,  // Right edge
-                width: 20,
-                height: 15
-            });
-            break;
+    // Keep spike frequency the same
+    if (Math.random() < 0.3) {
+        const spikePos = Math.random() * (obstacle.width - 60) + 10;  // Adjusted for bigger spike width
+        obstacle.spikes.push({
+            relativeX: spikePos,
+            width: 30,    // Increased from 20
+            height: 25    // Increased from 15
+        });
     }
 
     obstacles.push(obstacle);
@@ -122,42 +181,122 @@ function drawPlayer() {
     ctx.save();
     ctx.translate(player.x + player.width/2, player.y + player.height/2);
     
-    // Rotate player when jumping
-    if (player.jumping) {
-        player.rotation += 0.1;
-    } else {
-        player.rotation = 0;
-    }
+    player.rotation += 0.1; // Always spin
     ctx.rotate(player.rotation);
 
-    // Change player gradient from red to blue
-    const gradient = ctx.createLinearGradient(-player.width/2, -player.height/2, 
-                                            player.width/2, player.height/2);
-    gradient.addColorStop(0, '#0066ff');  // Bright blue
-    gradient.addColorStop(1, '#66a3ff');  // Light blue
-    ctx.fillStyle = gradient;
+    // Draw black block base
+    ctx.fillStyle = '#000000';
     ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+    
+    // Draw flame effect
+    const flameColors = ['#4B0082', '#0000FF', '#4169E1', '#9400D3'];
+    
+    // Draw triangular flames around the block
+    for(let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2 + (Date.now() / 200);
+        const flameLength = player.width/2 + Math.sin(Date.now() / 100) * 5; // Flickering effect
+        
+        ctx.beginPath();
+        ctx.moveTo(0, 0); // Center of block
+        
+        // Create flame triangle
+        const x1 = Math.cos(angle) * flameLength;
+        const y1 = Math.sin(angle) * flameLength;
+        const x2 = Math.cos(angle + 0.2) * (flameLength * 0.7);
+        const y2 = Math.sin(angle + 0.2) * (flameLength * 0.7);
+        
+        ctx.lineTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.closePath();
+
+        // Create gradient for each flame
+        const gradient = ctx.createLinearGradient(0, 0, x1, y1);
+        gradient.addColorStop(0, flameColors[i % flameColors.length]);
+        gradient.addColorStop(1, 'transparent');
+        
+        ctx.fillStyle = gradient;
+        ctx.fill();
+    }
     
     ctx.restore();
 
-    // Add trail effect
+    // Modified trail effect
     player.trail.unshift({ x: player.x, y: player.y, rotation: player.rotation });
-    if (player.trail.length > 10) player.trail.pop();
+    if (player.trail.length > 8) player.trail.pop();
     
-    // Change trail color from red to blue
     player.trail.forEach((pos, index) => {
-        const alpha = (1 - index/10) * 0.3;
+        const alpha = (1 - index/8) * 0.3;
         ctx.save();
         ctx.translate(pos.x + player.width/2, pos.y + player.height/2);
         ctx.rotate(pos.rotation);
-        ctx.fillStyle = `rgba(0, 102, 255, ${alpha})`; // Blue with alpha
+        
+        // Draw black block trail
+        ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
         ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+        
+        // Draw flame trail
+        const flameColor = flameColors[index % flameColors.length];
+        for(let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2 + (Date.now() / 300);
+            const flameLength = player.width/2 * (1 - index/8);
+            
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const x1 = Math.cos(angle) * flameLength;
+            const y1 = Math.sin(angle) * flameLength;
+            const x2 = Math.cos(angle + 0.2) * (flameLength * 0.7);
+            const y2 = Math.sin(angle + 0.2) * (flameLength * 0.7);
+            
+            ctx.lineTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.closePath();
+            
+            const gradient = ctx.createLinearGradient(0, 0, x1, y1);
+            gradient.addColorStop(0, `rgba(75, 0, 130, ${alpha})`);
+            gradient.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
+        
         ctx.restore();
     });
 
-    // Create particles
+    // Create magical flame particles when jumping
     if (player.jumping) {
-        particles.push(new Particle(player.x, player.y + player.height));
+        for (let i = 0; i < 2; i++) {
+            particles.push(new MagicParticle(
+                player.x + Math.random() * player.width,
+                player.y + Math.random() * player.height
+            ));
+        }
+    }
+}
+
+// Add MagicParticle class
+class MagicParticle extends Particle {
+    constructor(x, y) {
+        super(x, y);
+        this.colors = ['#4B0082', '#0000FF', '#4169E1', '#9400D3'];
+        this.color = this.colors[Math.floor(Math.random() * this.colors.length)];
+        this.size = Math.random() * 4 + 2;
+        this.speedX = (Math.random() - 0.5) * 3;
+        this.speedY = (Math.random() - 0.5) * 3;
+    }
+
+    draw() {
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(${this.getRGBA()})`;
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    getRGBA() {
+        const hex = this.color.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        return `${r}, ${g}, ${b}, ${this.life}`;
     }
 }
 
@@ -183,7 +322,7 @@ function drawObstacles() {
     });
 }
 
-// Modify drawSpike function to use relative positions
+// Modify drawSpike function to handle bigger spikes
 function drawSpike(spike, platformX, platformY) {
     const spikeX = platformX + spike.relativeX;
     
@@ -199,32 +338,39 @@ function drawSpike(spike, platformX, platformY) {
         spikeX + spike.width/2,
         platformY
     );
-    gradient.addColorStop(0, '#ff0000');
-    gradient.addColorStop(1, '#ff6666');
+    gradient.addColorStop(0, '#4B0082');  // Indigo (dark purple)
+    gradient.addColorStop(0.5, '#2E0854'); // Darker purple
+    gradient.addColorStop(1, '#000000');  // Black
     
     ctx.fillStyle = gradient;
     ctx.fill();
+
+    // Add stronger glow effect
+    ctx.shadowColor = '#4B0082';
+    ctx.shadowBlur = 8;  // Increased from 5
+    ctx.fill();
+    ctx.shadowBlur = 0;
 }
 
 function drawBackground() {
-    // Scrolling grid background
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    // Fill background with dark gray
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw grid of gray pixels with lighter borders
+    const pixelSize = 40;  // Increased from 20 to 40
+    ctx.strokeStyle = '#333333';  // Lighter gray for borders
     ctx.lineWidth = 1;
     
-    backgroundOffset = (backgroundOffset + currentGameSpeed) % 50;
-    
-    for (let x = -backgroundOffset; x < canvas.width; x += 50) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-    }
-    
-    for (let y = 0; y < canvas.height; y += 50) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
+    for (let x = 0; x < canvas.width; x += pixelSize) {
+        for (let y = 0; y < canvas.height; y += pixelSize) {
+            // Fill each pixel with dark gray
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(x, y, pixelSize, pixelSize);
+            
+            // Draw lighter border
+            ctx.strokeRect(x, y, pixelSize, pixelSize);
+        }
     }
 }
 
@@ -249,7 +395,6 @@ function checkCollision(player, obstacle) {
         player.x < obstacle.x + obstacle.width) {
         
         player.y = obstacle.y - player.height;
-        player.jumping = false;
         player.velocity = 0;
     }
 
@@ -295,12 +440,46 @@ function createLavaParticle() {
 function drawMenu() {
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '32px Arial';
-    ctx.fillText('The Floor Is Lava', 270, 150);
+    ctx.textAlign = 'center';  // Center align text
+    ctx.fillText('The Floor Is Lava', canvas.width/2, 150);
     ctx.font = '16px Arial';
-    ctx.fillText('Click Start or Press Space to Play', 290, 190);
+    ctx.fillText('Click Start or Press Space to Play', canvas.width/2, 190);
+    ctx.textAlign = 'left';  // Reset text alignment
 }
 
-// Modify update function to make player always falling unless on platform
+// Modify handleJump function to remove double jump
+function handleJump() {
+    if (!isGameStarted) {
+        startGame();
+        return;
+    }
+    
+    if (isPaused || countdown > 0) {
+        return;
+    }
+
+    if (hasWon) {
+        hasWon = false;
+        resetGame();
+        return;
+    }
+
+    // Check if on platform or ground
+    const onPlatform = obstacles.some(obstacle => 
+        player.y + player.height >= obstacle.y - 5 && 
+        player.y + player.height <= obstacle.y + 5 && 
+        player.x + player.width > obstacle.x && 
+        player.x < obstacle.x + obstacle.width
+    ) || player.y + player.height >= 329;
+
+    // Only allow jump if on platform/ground or have infinite jump
+    if (hasInfiniteJump || onPlatform) {
+        player.velocity = jumpForce;
+        player.jumping = true;
+    }
+}
+
+// Modify update function to add precise lava collision
 function update() {
     if (!isGameStarted || isPaused || countdown > 0) {
         return;
@@ -310,60 +489,81 @@ function update() {
         return;
     }
 
+    // Continuous jump check without cooldown
+    if (isMouseDown) {
+        handleJump();
+    }
+
     // Update game speed based on score
     currentGameSpeed = Math.min(
         MAX_GAME_SPEED,
         INITIAL_GAME_SPEED + (score * SPEED_INCREMENT)
     );
 
-    // Always apply gravity
+    // Apply gravity
     player.velocity += gravity;
+    player.velocity = Math.min(player.velocity, MAX_VELOCITY);
     player.y += player.velocity;
 
-    // Check for win condition
-    if (score >= 100) {
-        hasWon = true;
-        return;
-    }
-
-    // Lava collision (die immediately)
-    if (player.y + player.height > 330) {
+    // Check for lava collision (330 is lava height)
+    if (player.y + player.height >= 330) {
+        player.y = 330 - player.height; // Snap to lava surface
         startCountdown();
         return;
     }
 
-    // Update obstacles
+    // Update obstacles with auto-scrolling
     let isOnPlatform = false;
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obstacle = obstacles[i];
         obstacle.x -= currentGameSpeed;
         
-        // Check if player is on this platform
-        if (player.y + player.height === obstacle.y &&
+        if (player.y + player.height >= obstacle.y - 5 && 
+            player.y + player.height <= obstacle.y + 5 && 
             player.x + player.width > obstacle.x && 
             player.x < obstacle.x + obstacle.width) {
             isOnPlatform = true;
+            player.y = obstacle.y - player.height;
+            player.velocity = 0;
+            // Remove player.jumping = false here
         }
         
+        // Remove obstacles that go off screen and add to score
         if (obstacle.x + obstacle.width < 0) {
             obstacles.splice(i, 1);
             score++;
+            
+            // Award coins for every multiple of 10
+            if (score % 10 === 0) {
+                coins += 10;
+                localStorage.setItem('coins', coins.toString());
+            }
         }
+        
         if (checkCollision(player, obstacle)) {
             startCountdown();
             return;
         }
     }
 
-    // If not on any platform, player should be falling
-    if (!isOnPlatform) {
-        player.jumping = true;
-    }
-
     // Generate new obstacles
     if (obstacles.length === 0 || 
         obstacles[obstacles.length - 1].x < canvas.width - currentPlatformDistance) {
         createObstacle();
+    }
+
+    // Check if score hits 50 to disable infinite jump
+    if (score >= 50 && hasInfiniteJump) {
+        hasInfiniteJump = false;
+        updateInfiniteJumpButton();
+    }
+
+    // Check for win at 100 and award 50 coins
+    if (score >= 100) {
+        coins += 50;  // Award 50 coins for winning
+        localStorage.setItem('coins', coins.toString());
+        hasWon = true;
+        return;
     }
 }
 
@@ -425,6 +625,7 @@ function draw() {
     drawPlayer();
     drawObstacles();
     drawScore();
+    drawCoins();
 
     // Draw pause or countdown text
     if (isPaused) {
@@ -451,71 +652,61 @@ function draw() {
     }
 }
 
+// Simplify game loop
 function gameLoop() {
     update();
     draw();
-    requestAnimationFrame(gameLoop);
+    animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// Replace the event listener section with these new controls
-document.addEventListener('keydown', (event) => {
+// Modify window.onload
+window.onload = function() {
+    // Set up controls
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    
+    // Set up buttons
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    
+    startBtn.onclick = startGame;
+    pauseBtn.onclick = togglePause;
+
+    // Add mouse and touch controls
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('touchstart', handleTouchStart);
+
+    // Update mouse controls
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mouseleave', () => isMouseDown = false);
+
+    // Draw initial menu and start game loop
+    draw();
+    gameLoop();
+    createInfiniteJumpButton();
+};
+
+// Add keyboard control function
+function handleKeyDown(event) {
     if (event.code === 'Space' || event.code === 'ArrowUp') {
         handleJump();
     }
-});
-
-// Add mouse click control
-canvas.addEventListener('mousedown', (event) => {
-    if (event.button === 0) { // Left mouse button
-        handleJump();
-    }
-});
-
-// Add touch support for mobile
-canvas.addEventListener('touchstart', (event) => {
-    event.preventDefault(); // Prevent scrolling
-    handleJump();
-});
-
-// Modify handleJump function
-function handleJump() {
-    if (!isGameStarted) {
-        startGame();
-        return;
-    }
-    
-    if (isPaused || countdown > 0) {
-        return;
-    }
-
-    if (hasWon) {
-        hasWon = false;
-        resetGame();
-        return;
-    }
-
-    // Allow jumping if on a platform or not too far from one
-    const canJump = obstacles.some(obstacle => 
-        player.y + player.height >= obstacle.y - 1 && 
-        player.y + player.height <= obstacle.y + 1 && 
-        player.x + player.width > obstacle.x && 
-        player.x < obstacle.x + obstacle.width
-    );
-
-    if (canJump) {
-        player.jumping = true;
-        player.velocity = jumpForce;
-    }
 }
 
-// Add new function to start game
+function handleKeyUp(event) {
+    // This function is now empty as per the new implementation
+}
+
+// Simplify startGame function
 function startGame() {
-    isGameStarted = true;
-    resetGame();
-    updateButtons();
+    if (!isGameStarted) {
+        isGameStarted = true;
+        resetGame();
+    }
 }
 
-// Add new function to reset game
+// Modify resetGame function to reset jump count
 function resetGame() {
     hasWon = false;
     countdown = 0;
@@ -531,6 +722,7 @@ function resetGame() {
     player.rotation = 0;
     particles.length = 0;
     player.trail = [];
+    player.jumping = false;
     createInitialPlatform();
     createObstacle();
     updateButtons();
@@ -567,17 +759,74 @@ function startCountdown() {
     }, 1000);
 }
 
-// Modify createInitialPlatform for better first jump
+// Make initial platform more forgiving
 function createInitialPlatform() {
     obstacles.push({
         type: OBSTACLE_TYPES.PLATFORM,
         x: 50,
         y: 280,
-        width: 300,  // Wider starting platform
+        width: 300,  // Much wider starting platform (changed from 150)
         height: 15,
-        spikes: []
+        spikes: [],
+        scored: false
     });
 }
 
-// 开始游戏
-gameLoop(); 
+// Add cleanup function
+function cleanup() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+    }
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+    }
+    gameMusic.pause();  // Stop music when cleaning up
+    gameMusic.currentTime = 0;
+}
+
+// Add mouse click control back
+canvas.addEventListener('mousedown', (event) => {
+    if (event.button === 0) { // Left mouse button
+        handleJump();
+    }
+});
+
+// Add touch support for mobile back
+canvas.addEventListener('touchstart', (event) => {
+    event.preventDefault(); // Prevent scrolling
+    handleJump();
+});
+
+// Add these helper functions
+function handleMouseDown(event) {
+    if (event.button === 0) { // Left mouse button
+        isMouseDown = true;
+    }
+}
+
+function handleMouseUp(event) {
+    if (event.button === 0) { // Left mouse button
+        isMouseDown = false;
+    }
+}
+
+function handleTouchStart(event) {
+    event.preventDefault(); // Prevent scrolling
+    handleJump();
+}
+
+// Keep coin functions
+function drawCoins() {
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Coins: ${coins}`, canvas.width - 10, 25);
+    ctx.textAlign = 'left';
+}
+
+function awardCoins() {
+    if (score >= 10) {
+        coins += 10;
+        localStorage.setItem('coins', coins.toString());
+    }
+} 
