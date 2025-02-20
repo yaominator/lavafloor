@@ -88,7 +88,7 @@ const buttonPos = {
 
 // Add at the top with other state variables
 let hasInfiniteJump = false;
-const INFINITE_JUMP_COST = 300;
+const INFINITE_JUMP_COST = 200;
 
 // Add mouseDown state variable at the top with other state variables
 let isMouseDown = false;
