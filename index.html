@@ -6,19 +6,28 @@
         canvas {
             border: 2px solid #333;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            width: 100vw;  /* Full viewport width */
+            height: 100vh; /* Full viewport height */
+            margin: 0;
+            padding: 0;
+            display: block;
+            object-fit: contain; /* Maintain aspect ratio */
+            position: absolute; /* Position it to fill page */
+            top: 0;
+            left: 0;
         }
         body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
             margin: 0;
-            background-color: #121212;
+            padding: 0;
             overflow: hidden;
+            background-color: #121212;
         }
         .controls {
-            margin-top: 20px;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
         }
         button {
             padding: 10px 20px;
@@ -59,7 +68,7 @@
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <canvas id="gameCanvas" width="1200" height="600"></canvas>
     <div class="controls">
         <button id="startBtn">Start Game</button>
         <button id="pauseBtn">Pause</button>
