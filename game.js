@@ -323,7 +323,7 @@ function drawObstacles() {
     });
 }
 
-// Modify drawSpike function to handle bigger spikes
+// Modify drawSpike function to make spikes red
 function drawSpike(spike, platformX, platformY) {
     const spikeX = platformX + spike.relativeX;
     
@@ -339,16 +339,16 @@ function drawSpike(spike, platformX, platformY) {
         spikeX + spike.width/2,
         platformY
     );
-    gradient.addColorStop(0, '#4B0082');  // Indigo (dark purple)
-    gradient.addColorStop(0.5, '#2E0854'); // Darker purple
-    gradient.addColorStop(1, '#000000');  // Black
+    gradient.addColorStop(0, '#FF0000');  // Bright red
+    gradient.addColorStop(0.5, '#CC0000'); // Darker red
+    gradient.addColorStop(1, '#800000');  // Very dark red
     
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Add stronger glow effect
-    ctx.shadowColor = '#4B0082';
-    ctx.shadowBlur = 8;  // Increased from 5
+    // Add red glow effect
+    ctx.shadowColor = '#FF0000';
+    ctx.shadowBlur = 8;
     ctx.fill();
     ctx.shadowBlur = 0;
 }
