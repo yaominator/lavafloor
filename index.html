@@ -44,13 +44,25 @@
         #pauseBtn:hover {
             background-color: #da190b;
         }
+        #infiniteJumpBtn {
+            z-index: 1000;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        #infiniteJumpBtn:hover {
+            background-color: #45a049;
+        }
+        #infiniteJumpBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
     <div class="controls">
-        <button id="startBtn" onclick="startGame()">Start Game</button>
-        <button id="pauseBtn" onclick="togglePause()">Pause</button>
+        <button id="startBtn">Start Game</button>
+        <button id="pauseBtn">Pause</button>
     </div>
     <script src="game.js"></script>
 </body>
