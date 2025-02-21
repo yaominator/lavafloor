@@ -78,6 +78,7 @@ const MIN_PLATFORMS = 5; // Minimum number of platforms to maintain
 
 // Add at the top with other state variables
 let coins = parseInt(localStorage.getItem('coins')) || 0; // Persist coins between sessions
+let wins = parseInt(localStorage.getItem('wins')) || 0;  // Persist wins between sessions
 
 // Add these variables at the top with other state variables
 const buttonPos = {
@@ -94,113 +95,121 @@ const INFINITE_JUMP_COST = 300;
 // Add mouseDown state variable at the top with other state variables
 let isMouseDown = false;
 
-// Add button to HTML
-function createInfiniteJumpButton() {
+// Add at the top with other state variables
+const COLORS = {
+    purple: ['#4B0082', '#0000FF', '#4169E1', '#9400D3'],  // Back to original purple set
+    red: ['#FF0000', '#FF4500', '#FF6347', '#DC143C'],
+    green: ['#00FF00', '#32CD32', '#00FA9A', '#98FB98'],
+    blue: ['#00FFFF', '#00BFFF', '#87CEEB', '#1E90FF'],
+    gold: ['#FFD700', '#FFA500', '#DAA520', '#B8860B']
+};
+let currentColorSet = 'purple';  // Default color
+
+// Add function to create color picker button
+function createColorPickerButton() {
     const button = document.createElement('button');
-    button.id = 'infiniteJumpBtn';
-    button.style.position = 'fixed';  // Changed to fixed
-    button.style.top = '50px';        // Move down more
+    button.id = 'colorPickerBtn';
+    button.style.position = 'fixed';
+    button.style.top = '120px';
     button.style.left = '50%';
     button.style.transform = 'translateX(-50%)';
-    button.style.padding = '15px 30px';  // Even more padding
-    button.style.fontSize = '24px';       // Bigger text
+    button.style.padding = '15px 30px';
+    button.style.fontSize = '24px';
     button.style.fontWeight = 'bold';
-    button.style.border = '3px solid white';  // Add border
+    button.style.border = '3px solid white';
     button.style.borderRadius = '10px';
-    button.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-    button.style.zIndex = '9999';        // Make sure it's on very top
     button.style.backgroundColor = '#4CAF50';
     button.style.color = 'white';
-    button.style.textShadow = '2px 2px 4px rgba(0,0,0,0.3)';  // Text shadow
-    button.style.fontFamily = 'Arial, sans-serif';
-    button.innerHTML = `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
-    button.onclick = purchaseInfiniteJump;
+    button.style.zIndex = '9999';
+    button.innerHTML = '🎨 Change Color';
+    button.onclick = showColorGrid;
     document.body.appendChild(button);
 }
 
-// Add purchase function
-function purchaseInfiniteJump() {
-    if (coins >= INFINITE_JUMP_COST && !hasInfiniteJump) {
-        coins -= INFINITE_JUMP_COST;
-        hasInfiniteJump = true;
-        localStorage.setItem('coins', coins.toString());
-        updateInfiniteJumpButton();
-    }
-}
-
-// Update button appearance
-function updateInfiniteJumpButton() {
-    const button = document.getElementById('infiniteJumpBtn');
-    if (button) {
-        button.innerHTML = hasInfiniteJump ? 
-            '<span style="font-size: 24px">🚀 INFINITE JUMP ACTIVE!</span>' : 
-            `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
-        button.style.cursor = (coins >= INFINITE_JUMP_COST && !hasInfiniteJump) ? 'pointer' : 'not-allowed';
-    }
-}
-
-// Modify createObstacle function to create bigger spikes
-function createObstacle() {
-    const lastObstacle = obstacles[obstacles.length - 1];
-    
-    // Increase jump distances for more challenge
-    const maxJumpDistance = 280;  // Increased from 250
-    const minJumpDistance = 220;  // Increased from 180
-    
-    // Make platforms with more space between them
-    const minX = lastObstacle ? lastObstacle.x + minJumpDistance : 100;
-    const maxX = lastObstacle ? lastObstacle.x + maxJumpDistance : canvas.width - 300;
-    
-    // Keep current height range
-    const minHeight = lastObstacle ? Math.max(250, lastObstacle.y - 40) : 330;
-    const maxHeight = lastObstacle ? Math.min(370, lastObstacle.y + 40) : 330;
-    
-    const obstacle = {
-        type: OBSTACLE_TYPES.PLATFORM,
-        x: Math.random() * (maxX - minX) + minX,
-        y: Math.random() * (maxHeight - minHeight) + minHeight,
-        width: 150,
-        height: 15,
-        spikes: [],
-        scored: false
-    };
-
-    // Keep spike frequency the same
-    if (Math.random() < 0.3) {
-        const spikePos = Math.random() * (obstacle.width - 60) + 10;  // Adjusted for bigger spike width
-        obstacle.spikes.push({
-            relativeX: spikePos,
-            width: 30,    // Increased from 20
-            height: 25    // Increased from 15
-        });
+// Add function to create and show color grid
+function showColorGrid() {
+    // Remove existing grid if any
+    const existingGrid = document.getElementById('colorGrid');
+    if (existingGrid) {
+        existingGrid.remove();
+        return;
     }
 
-    obstacles.push(obstacle);
+    const grid = document.createElement('div');
+    grid.id = 'colorGrid';
+    grid.style.position = 'fixed';
+    grid.style.top = '180px';
+    grid.style.left = '50%';
+    grid.style.transform = 'translateX(-50%)';
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+    grid.style.gap = '10px';
+    grid.style.padding = '15px';
+    grid.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    grid.style.borderRadius = '10px';
+    grid.style.zIndex = '10000';
+
+    Object.entries(COLORS).forEach(([name, colors]) => {
+        const colorBox = document.createElement('div');
+        colorBox.style.width = '50px';
+        colorBox.style.height = '50px';
+        colorBox.style.background = `linear-gradient(45deg, ${colors.join(', ')})`;
+        colorBox.style.borderRadius = '5px';
+        colorBox.style.cursor = 'pointer';
+        colorBox.style.border = name === currentColorSet ? '3px solid white' : '3px solid transparent';
+        colorBox.onclick = () => {
+            currentColorSet = name;
+            grid.remove();
+            // Show confirmation message
+            const msg = document.createElement('div');
+            msg.style.position = 'fixed';
+            msg.style.top = '180px';
+            msg.style.left = '50%';
+            msg.style.transform = 'translateX(-50%)';
+            msg.style.color = 'white';
+            msg.style.fontSize = '20px';
+            msg.style.fontWeight = 'bold';
+            msg.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+            msg.innerHTML = `Color Set: ${name.charAt(0).toUpperCase() + name.slice(1)}`;
+            document.body.appendChild(msg);
+            setTimeout(() => msg.remove(), 1500);
+        };
+        grid.appendChild(colorBox);
+    });
+
+    document.body.appendChild(grid);
 }
 
+// Modify drawPlayer function to restore original flame effect
 function drawPlayer() {
     ctx.save();
     ctx.translate(player.x + player.width/2, player.y + player.height/2);
     
-    player.rotation += 0.1; // Always spin
+    player.rotation += 0.05;
     ctx.rotate(player.rotation);
 
-    // Draw black block base
-    ctx.fillStyle = '#000000';
+    // Create gradient for the block base that matches the color grid
+    const blockGradient = ctx.createLinearGradient(
+        -player.width/2, -player.height/2,
+        player.width/2, player.height/2
+    );
+    const colors = COLORS[currentColorSet];
+    colors.forEach((color, index) => {
+        blockGradient.addColorStop(index / (colors.length - 1), color);
+    });
+    
+    // Draw block with gradient
+    ctx.fillStyle = blockGradient;
     ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
     
-    // Draw flame effect
-    const flameColors = ['#4B0082', '#0000FF', '#4169E1', '#9400D3'];
-    
-    // Draw triangular flames around the block
+    // Draw flames using same gradient pattern
     for(let i = 0; i < 8; i++) {
         const angle = (i / 8) * Math.PI * 2 + (Date.now() / 200);
-        const flameLength = player.width/2 + Math.sin(Date.now() / 100) * 5; // Flickering effect
+        const flameLength = player.width/2 + Math.sin(Date.now() / 100) * 5;
         
         ctx.beginPath();
-        ctx.moveTo(0, 0); // Center of block
+        ctx.moveTo(0, 0);
         
-        // Create flame triangle
         const x1 = Math.cos(angle) * flameLength;
         const y1 = Math.sin(angle) * flameLength;
         const x2 = Math.cos(angle + 0.2) * (flameLength * 0.7);
@@ -210,9 +219,8 @@ function drawPlayer() {
         ctx.lineTo(x2, y2);
         ctx.closePath();
 
-        // Create gradient for each flame
         const gradient = ctx.createLinearGradient(0, 0, x1, y1);
-        gradient.addColorStop(0, flameColors[i % flameColors.length]);
+        gradient.addColorStop(0, colors[i % colors.length]);
         gradient.addColorStop(1, 'transparent');
         
         ctx.fillStyle = gradient;
@@ -220,8 +228,8 @@ function drawPlayer() {
     }
     
     ctx.restore();
-
-    // Modified trail effect
+    
+    // Update trail with matching gradient
     player.trail.unshift({ x: player.x, y: player.y, rotation: player.rotation });
     if (player.trail.length > 8) player.trail.pop();
     
@@ -231,12 +239,18 @@ function drawPlayer() {
         ctx.translate(pos.x + player.width/2, pos.y + player.height/2);
         ctx.rotate(pos.rotation);
         
-        // Draw black block trail
-        ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+        // Create gradient for trail block
+        const trailGradient = ctx.createLinearGradient(
+            -player.width/2, -player.height/2,
+            player.width/2, player.height/2
+        );
+        colors.forEach((color, i) => {
+            trailGradient.addColorStop(i / (colors.length - 1), `rgba(${hexToRgb(color)}, ${alpha})`);
+        });
+        
+        ctx.fillStyle = trailGradient;
         ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
         
-        // Draw flame trail
-        const flameColor = flameColors[index % flameColors.length];
         for(let i = 0; i < 4; i++) {
             const angle = (i / 4) * Math.PI * 2 + (Date.now() / 300);
             const flameLength = player.width/2 * (1 - index/8);
@@ -253,7 +267,7 @@ function drawPlayer() {
             ctx.closePath();
             
             const gradient = ctx.createLinearGradient(0, 0, x1, y1);
-            gradient.addColorStop(0, `rgba(75, 0, 130, ${alpha})`);
+            gradient.addColorStop(0, `rgba(${hexToRgb(colors[i % colors.length])}, ${alpha})`);
             gradient.addColorStop(1, 'transparent');
             
             ctx.fillStyle = gradient;
@@ -262,43 +276,6 @@ function drawPlayer() {
         
         ctx.restore();
     });
-
-    // Create magical flame particles when jumping
-    if (player.jumping) {
-        for (let i = 0; i < 2; i++) {
-            particles.push(new MagicParticle(
-                player.x + Math.random() * player.width,
-                player.y + Math.random() * player.height
-            ));
-        }
-    }
-}
-
-// Add MagicParticle class
-class MagicParticle extends Particle {
-    constructor(x, y) {
-        super(x, y);
-        this.colors = ['#4B0082', '#0000FF', '#4169E1', '#9400D3'];
-        this.color = this.colors[Math.floor(Math.random() * this.colors.length)];
-        this.size = Math.random() * 4 + 2;
-        this.speedX = (Math.random() - 0.5) * 3;
-        this.speedY = (Math.random() - 0.5) * 3;
-    }
-
-    draw() {
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(${this.getRGBA()})`;
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    getRGBA() {
-        const hex = this.color.replace('#', '');
-        const r = parseInt(hex.substr(0, 2), 16);
-        const g = parseInt(hex.substr(2, 2), 16);
-        const b = parseInt(hex.substr(4, 2), 16);
-        return `${r}, ${g}, ${b}, ${this.life}`;
-    }
 }
 
 // Modify drawObstacles function
@@ -323,7 +300,7 @@ function drawObstacles() {
     });
 }
 
-// Modify drawSpike function to make spikes red
+// Modify drawSpike function to make spikes more visible
 function drawSpike(spike, platformX, platformY) {
     const spikeX = platformX + spike.relativeX;
     
@@ -340,15 +317,15 @@ function drawSpike(spike, platformX, platformY) {
         platformY
     );
     gradient.addColorStop(0, '#FF0000');  // Bright red
-    gradient.addColorStop(0.5, '#CC0000'); // Darker red
-    gradient.addColorStop(1, '#800000');  // Very dark red
+    gradient.addColorStop(0.5, '#FF4500'); // Orange-red
+    gradient.addColorStop(1, '#FF6347');  // Tomato red
     
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Add red glow effect
+    // Add stronger red glow effect
     ctx.shadowColor = '#FF0000';
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 15;  // Increased glow
     ctx.fill();
     ctx.shadowBlur = 0;
 }
@@ -379,6 +356,7 @@ function drawScore() {
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '16px Arial';
     ctx.fillText(`Score: ${score}`, 10, 25);
+    ctx.fillText(`Wins: ${wins}`, 10, 50);  // Add wins display below score
 }
 
 // Modify collision detection to be more forgiving
@@ -459,21 +437,20 @@ function handleJump() {
         return;
     }
 
-    if (hasWon && !winTimer) {  // Only allow restart after timer
+    if (hasWon && !winTimer) {
         hasWon = false;
         resetGame();
         return;
     }
 
-    // Check if on platform or ground (update ground check to match lava height)
+    // Check if on platform or ground
     const onPlatform = obstacles.some(obstacle => 
         player.y + player.height >= obstacle.y - 5 && 
         player.y + player.height <= obstacle.y + 5 && 
         player.x + player.width > obstacle.x && 
         player.x < obstacle.x + obstacle.width
-    ) || player.y + player.height >= 530;  // Changed from 329 to 530
+    ) || player.y + player.height >= 530;
 
-    // Only allow jump if on platform/ground or have infinite jump
     if (hasInfiniteJump || onPlatform) {
         player.velocity = jumpForce;
         player.jumping = true;
@@ -562,7 +539,9 @@ function update() {
     // Check for win at 100 and award 50 coins
     if (score >= 100) {
         coins += 50;  // Award 50 coins for winning
+        wins += 1;    // Increment win counter
         localStorage.setItem('coins', coins.toString());
+        localStorage.setItem('wins', wins.toString());  // Save wins
         hasWon = true;
         if (!winTimer) {
             winTimer = setTimeout(() => {
@@ -690,6 +669,7 @@ window.onload = function() {
     draw();
     gameLoop();
     createInfiniteJumpButton();
+    createColorPickerButton();
 
     // Add page visibility handler
     document.addEventListener('visibilitychange', () => {
@@ -845,4 +825,92 @@ function awardCoins() {
         coins += 10;
         localStorage.setItem('coins', coins.toString());
     }
+}
+
+// Add helper function to convert hex to rgb
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? 
+        `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : 
+        '75, 0, 130';
+}
+
+// Add button to HTML
+function createInfiniteJumpButton() {
+    const button = document.createElement('button');
+    button.id = 'infiniteJumpBtn';
+    button.style.position = 'fixed';  // Changed to fixed
+    button.style.top = '50px';        // Move down more
+    button.style.left = '50%';
+    button.style.transform = 'translateX(-50%)';
+    button.style.padding = '15px 30px';  // Even more padding
+    button.style.fontSize = '24px';       // Bigger text
+    button.style.fontWeight = 'bold';
+    button.style.border = '3px solid white';  // Add border
+    button.style.borderRadius = '10px';
+    button.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+    button.style.zIndex = '9999';        // Make sure it's on very top
+    button.style.backgroundColor = '#4CAF50';
+    button.style.color = 'white';
+    button.style.textShadow = '2px 2px 4px rgba(0,0,0,0.3)';  // Text shadow
+    button.style.fontFamily = 'Arial, sans-serif';
+    button.innerHTML = `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
+    button.onclick = purchaseInfiniteJump;
+    document.body.appendChild(button);
+}
+
+// Add purchase function
+function purchaseInfiniteJump() {
+    if (coins >= INFINITE_JUMP_COST && !hasInfiniteJump) {
+        coins -= INFINITE_JUMP_COST;
+        hasInfiniteJump = true;
+        localStorage.setItem('coins', coins.toString());
+        updateInfiniteJumpButton();
+    }
+}
+
+// Update button appearance
+function updateInfiniteJumpButton() {
+    const button = document.getElementById('infiniteJumpBtn');
+    if (button) {
+        button.innerHTML = hasInfiniteJump ? 
+            '<span style="font-size: 24px">🚀 INFINITE JUMP ACTIVE!</span>' : 
+            `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
+        button.style.cursor = (coins >= INFINITE_JUMP_COST && !hasInfiniteJump) ? 'pointer' : 'not-allowed';
+    }
+}
+
+// Add createObstacle function
+function createObstacle() {
+    const lastObstacle = obstacles[obstacles.length - 1];
+    
+    const maxJumpDistance = 280;
+    const minJumpDistance = 220;
+    
+    const minX = lastObstacle ? lastObstacle.x + minJumpDistance : 100;
+    const maxX = lastObstacle ? lastObstacle.x + maxJumpDistance : canvas.width - 300;
+    
+    const minHeight = lastObstacle ? Math.max(250, lastObstacle.y - 40) : 330;
+    const maxHeight = lastObstacle ? Math.min(370, lastObstacle.y + 40) : 330;
+    
+    const obstacle = {
+        type: OBSTACLE_TYPES.PLATFORM,
+        x: Math.random() * (maxX - minX) + minX,
+        y: Math.random() * (maxHeight - minHeight) + minHeight,
+        width: 150,
+        height: 15,
+        spikes: [],
+        scored: false
+    };
+
+    if (Math.random() < 0.3) {
+        const spikePos = Math.random() * (obstacle.width - 60) + 10;
+        obstacle.spikes.push({
+            relativeX: spikePos,
+            width: 30,
+            height: 25
+        });
+    }
+
+    obstacles.push(obstacle);
 } 
