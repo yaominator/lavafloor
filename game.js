@@ -65,7 +65,8 @@ class Particle {
 const OBSTACLE_TYPES = {
     GROUND_SPIKE: 'groundSpike',
     PLATFORM: 'platform',
-    PLATFORM_SPIKE: 'platformSpike'
+    PLATFORM_SPIKE: 'platformSpike',
+    PILLAR: 'pillar'  // Add new type
 };
 
 // Add these variables with other state variables
@@ -97,21 +98,51 @@ let isMouseDown = false;
 
 // Add at the top with other state variables
 const COLORS = {
-    purple: ['#4B0082', '#0000FF', '#4169E1', '#9400D3'],  // Back to original purple set
     red: ['#FF0000', '#FF4500', '#FF6347', '#DC143C'],
+    yellow: ['#FFD700', '#FFA500', '#DAA520', '#B8860B'],  // Renamed from gold to yellow
     green: ['#00FF00', '#32CD32', '#00FA9A', '#98FB98'],
     blue: ['#00FFFF', '#00BFFF', '#87CEEB', '#1E90FF'],
-    gold: ['#FFD700', '#FFA500', '#DAA520', '#B8860B']
+    purple: ['#4B0082', '#0000FF', '#4169E1', '#9400D3'],
+    black: ['#000000', '#1A1A1A', '#333333', '#4A4A4A']  // Add black gradient
 };
-let currentColorSet = 'purple';  // Default color
+let currentColorSet = 'red';  // Changed from 'purple' to 'red'
+
+// Add at the top with other state variables
+const DIFFICULTY_LEVELS = {
+    EASY: {
+        name: 'Easy',
+        platformWidth: 200,
+        pillarWidth: 60,
+        spikeChance: 0.1,
+        pillarChance: 0.1,
+        speed: 2.0
+    },
+    NORMAL: {
+        name: 'Normal',
+        platformWidth: 150,
+        pillarWidth: 40,
+        spikeChance: 0.3,
+        pillarChance: 0.2,
+        speed: 2.5
+    },
+    HARD: {
+        name: 'Hard',
+        platformWidth: 130,    // Increased from 120 to 130
+        pillarWidth: 40,      // Increased from 35 to 40
+        spikeChance: 0.3,     // Decreased from 0.35 to 0.3
+        pillarChance: 0.2,    // Decreased from 0.25 to 0.2
+        speed: 2.7            // Decreased from 2.8 to 2.7
+    }
+};
+let currentDifficulty = 'NORMAL';
 
 // Add function to create color picker button
 function createColorPickerButton() {
     const button = document.createElement('button');
     button.id = 'colorPickerBtn';
     button.style.position = 'fixed';
-    button.style.top = '120px';
-    button.style.left = '50%';
+    button.style.top = '50px';
+    button.style.left = '75%';  // Changed from 80% to 75%
     button.style.transform = 'translateX(-50%)';
     button.style.padding = '15px 30px';
     button.style.fontSize = '24px';
@@ -121,45 +152,58 @@ function createColorPickerButton() {
     button.style.backgroundColor = '#4CAF50';
     button.style.color = 'white';
     button.style.zIndex = '9999';
-    button.innerHTML = '🎨 Change Color';
+    button.innerHTML = '<span style="font-size: 24px; white-space: nowrap">🎨 Change Color</span>';  // Force single line
+    button.style.whiteSpace = 'nowrap';  // Ensure text stays on one line
     button.onclick = showColorGrid;
     document.body.appendChild(button);
 }
 
-// Add function to create and show color grid
+// Modify showColorGrid function to show colors in one row
 function showColorGrid() {
     // Remove existing grid if any
     const existingGrid = document.getElementById('colorGrid');
     if (existingGrid) {
         existingGrid.remove();
+        if (isPaused) {
+            togglePause(); // Resume game if closing grid
+        }
         return;
+    }
+
+    if (!isPaused && isGameStarted) {
+        togglePause(); // Pause game when opening grid
     }
 
     const grid = document.createElement('div');
     grid.id = 'colorGrid';
     grid.style.position = 'fixed';
-    grid.style.top = '180px';
-    grid.style.left = '50%';
+    grid.style.top = '110px';
+    grid.style.left = '75%';  // Changed from 80% to 75%
     grid.style.transform = 'translateX(-50%)';
-    grid.style.display = 'grid';
-    grid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+    grid.style.display = 'flex';  // Changed from grid to flex
+    grid.style.flexDirection = 'row';  // Ensure horizontal layout
     grid.style.gap = '10px';
     grid.style.padding = '15px';
     grid.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
     grid.style.borderRadius = '10px';
     grid.style.zIndex = '10000';
+    grid.style.width = 'fit-content';  // Make container fit content
 
     Object.entries(COLORS).forEach(([name, colors]) => {
         const colorBox = document.createElement('div');
-        colorBox.style.width = '50px';
-        colorBox.style.height = '50px';
+        colorBox.style.width = '40px';
+        colorBox.style.height = '40px';
         colorBox.style.background = `linear-gradient(45deg, ${colors.join(', ')})`;
         colorBox.style.borderRadius = '5px';
         colorBox.style.cursor = 'pointer';
         colorBox.style.border = name === currentColorSet ? '3px solid white' : '3px solid transparent';
+        colorBox.style.flexShrink = '0';  // Prevent boxes from shrinking
         colorBox.onclick = () => {
             currentColorSet = name;
             grid.remove();
+            if (isPaused) {
+                togglePause(); // Resume game after selecting color
+            }
             // Show confirmation message
             const msg = document.createElement('div');
             msg.style.position = 'fixed';
@@ -281,19 +325,40 @@ function drawPlayer() {
 // Modify drawObstacles function
 function drawObstacles() {
     obstacles.forEach(obstacle => {
-        // Draw platform
-        const platformGradient = ctx.createLinearGradient(
-            obstacle.x,
-            obstacle.y,
-            obstacle.x,
-            obstacle.y + obstacle.height
-        );
-        platformGradient.addColorStop(0, '#4CAF50');
-        platformGradient.addColorStop(1, '#45a049');
-        ctx.fillStyle = platformGradient;
-        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        if (obstacle.type === OBSTACLE_TYPES.PILLAR) {
+            // Draw pillar with lava-like gradient
+            const pillarGradient = ctx.createLinearGradient(
+                obstacle.x,
+                obstacle.y - obstacle.height,
+                obstacle.x,
+                obstacle.y
+            );
+            pillarGradient.addColorStop(0, '#8B0000');  // Dark red at top
+            pillarGradient.addColorStop(0.7, '#FF4500');  // Orange-red
+            pillarGradient.addColorStop(1, '#FF0000');    // Bright red at bottom
+            ctx.fillStyle = pillarGradient;
+            ctx.fillRect(obstacle.x, obstacle.y - obstacle.height, obstacle.width, obstacle.height);
+            
+            // Add glow effect
+            ctx.shadowColor = '#FF0000';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(obstacle.x, obstacle.y - obstacle.height, obstacle.width, obstacle.height);
+            ctx.shadowBlur = 0;
+        } else {
+            // Draw normal platform
+            const platformGradient = ctx.createLinearGradient(
+                obstacle.x,
+                obstacle.y,
+                obstacle.x,
+                obstacle.y + obstacle.height
+            );
+            platformGradient.addColorStop(0, '#4CAF50');
+            platformGradient.addColorStop(1, '#45a049');
+            ctx.fillStyle = platformGradient;
+            ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        }
 
-        // Draw spikes with platform position
+        // Draw spikes
         obstacle.spikes.forEach(spike => {
             drawSpike(spike, obstacle.x, obstacle.y);
         });
@@ -356,7 +421,8 @@ function drawScore() {
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '16px Arial';
     ctx.fillText(`Score: ${score}`, 10, 25);
-    ctx.fillText(`Wins: ${wins}`, 10, 50);  // Add wins display below score
+    ctx.fillText(`Wins: ${wins}`, 10, 50);
+    ctx.fillText(`Level: ${DIFFICULTY_LEVELS[currentDifficulty].name}`, 10, 75);  // Add level display
 }
 
 // Modify collision detection to be more forgiving
@@ -426,7 +492,7 @@ function drawMenu() {
     ctx.textAlign = 'left';  // Reset text alignment
 }
 
-// Modify handleJump function to use correct ground height
+// Modify handleJump function to check entire pillar
 function handleJump() {
     if (!isGameStarted) {
         startGame();
@@ -443,13 +509,26 @@ function handleJump() {
         return;
     }
 
-    // Check if on platform or ground
-    const onPlatform = obstacles.some(obstacle => 
-        player.y + player.height >= obstacle.y - 5 && 
-        player.y + player.height <= obstacle.y + 5 && 
-        player.x + player.width > obstacle.x && 
-        player.x < obstacle.x + obstacle.width
-    ) || player.y + player.height >= 530;
+    // Check if on platform or pillar
+    const onPlatform = obstacles.some(obstacle => {
+        if (obstacle.type === OBSTACLE_TYPES.PILLAR) {
+            // Check if on top of pillar OR standing on ground level of pillar
+            return (player.y + player.height >= obstacle.y - obstacle.height - 5 && 
+                   player.y + player.height <= obstacle.y - obstacle.height + 5 && 
+                   player.x + player.width > obstacle.x && 
+                   player.x < obstacle.x + obstacle.width) ||
+                   (player.y + player.height >= obstacle.y - 5 &&
+                   player.y + player.height <= obstacle.y + 5 &&
+                   player.x + player.width > obstacle.x &&
+                   player.x < obstacle.x + obstacle.width);
+        } else {
+            // Normal platform check
+            return player.y + player.height >= obstacle.y - 5 && 
+                   player.y + player.height <= obstacle.y + 5 && 
+                   player.x + player.width > obstacle.x && 
+                   player.x < obstacle.x + obstacle.width;
+        }
+    }) || player.y + player.height >= 530;
 
     if (hasInfiniteJump || onPlatform) {
         player.velocity = jumpForce;
@@ -457,7 +536,7 @@ function handleJump() {
     }
 }
 
-// Modify update function to add precise lava collision
+// Modify update function to check entire pillar collision
 function update() {
     if (!isGameStarted || isPaused || countdown > 0) {
         return;
@@ -496,14 +575,42 @@ function update() {
         const obstacle = obstacles[i];
         obstacle.x -= currentGameSpeed;
         
-        if (player.y + player.height >= obstacle.y - 5 && 
-            player.y + player.height <= obstacle.y + 5 && 
-            player.x + player.width > obstacle.x && 
-            player.x < obstacle.x + obstacle.width) {
-            isOnPlatform = true;
-            player.y = obstacle.y - player.height;
-            player.velocity = 0;
-            // Remove player.jumping = false here
+        if (obstacle.type === OBSTACLE_TYPES.PILLAR) {
+            // Check collision with pillar sides only
+            if (player.x + player.width > obstacle.x &&
+                player.x < obstacle.x + obstacle.width &&
+                player.y + player.height > obstacle.y - obstacle.height &&
+                player.y < obstacle.y) {
+                
+                // Only die if hitting the sides
+                const hitLeft = Math.abs(player.x + player.width - obstacle.x) < 10;
+                const hitRight = Math.abs(player.x - (obstacle.x + obstacle.width)) < 10;
+                
+                if (hitLeft || hitRight) {
+                    startCountdown();
+                    return;
+                }
+            }
+            
+            // Check if standing on top of pillar
+            if (player.y + player.height >= obstacle.y - obstacle.height - 5 && 
+                player.y + player.height <= obstacle.y - obstacle.height + 5 && 
+                player.x + player.width > obstacle.x && 
+                player.x < obstacle.x + obstacle.width) {
+                isOnPlatform = true;
+                player.y = obstacle.y - obstacle.height - player.height;
+                player.velocity = 0;
+            }
+        } else {
+            // Normal platform collision
+            if (player.y + player.height >= obstacle.y - 5 && 
+                player.y + player.height <= obstacle.y + 5 && 
+                player.x + player.width > obstacle.x && 
+                player.x < obstacle.x + obstacle.width) {
+                isOnPlatform = true;
+                player.y = obstacle.y - player.height;
+                player.velocity = 0;
+            }
         }
         
         // Remove obstacles that go off screen and add to score
@@ -511,9 +618,22 @@ function update() {
             obstacles.splice(i, 1);
             score++;
             
-            // Award coins for every multiple of 10
+            // Award coins based on difficulty for every multiple of 10
             if (score % 10 === 0) {
-                coins += 10;
+                let coinReward;
+                switch(currentDifficulty) {
+                    case 'HARD':
+                        coinReward = 30;
+                        break;
+                    case 'NORMAL':
+                        coinReward = 20;
+                        break;
+                    case 'EASY':
+                    default:
+                        coinReward = 10;
+                        break;
+                }
+                coins += coinReward;
                 localStorage.setItem('coins', coins.toString());
             }
         }
@@ -536,12 +656,26 @@ function update() {
         updateInfiniteJumpButton();
     }
 
-    // Check for win at 100 and award 50 coins
+    // Check for win at 100 and award coins and wins based on difficulty
     if (score >= 100) {
         coins += 50;  // Award 50 coins for winning
-        wins += 1;    // Increment win counter
+        
+        // Award wins based on difficulty
+        switch(currentDifficulty) {
+            case 'HARD':
+                wins += 3;  // 3 wins for hard
+                break;
+            case 'NORMAL':
+                wins += 2;  // 2 wins for normal
+                break;
+            case 'EASY':
+            default:
+                wins += 1;  // 1 win for easy
+                break;
+        }
+        
         localStorage.setItem('coins', coins.toString());
-        localStorage.setItem('wins', wins.toString());  // Save wins
+        localStorage.setItem('wins', wins.toString());
         hasWon = true;
         if (!winTimer) {
             winTimer = setTimeout(() => {
@@ -670,6 +804,7 @@ window.onload = function() {
     gameLoop();
     createInfiniteJumpButton();
     createColorPickerButton();
+    createLevelSelectorButton();
 
     // Add page visibility handler
     document.addEventListener('visibilitychange', () => {
@@ -839,20 +974,20 @@ function hexToRgb(hex) {
 function createInfiniteJumpButton() {
     const button = document.createElement('button');
     button.id = 'infiniteJumpBtn';
-    button.style.position = 'fixed';  // Changed to fixed
-    button.style.top = '50px';        // Move down more
-    button.style.left = '50%';
+    button.style.position = 'fixed';
+    button.style.top = '50px';
+    button.style.left = '18%';  // Changed from 20% to 18%
     button.style.transform = 'translateX(-50%)';
-    button.style.padding = '15px 30px';  // Even more padding
-    button.style.fontSize = '24px';       // Bigger text
+    button.style.padding = '15px 30px';
+    button.style.fontSize = '24px';
     button.style.fontWeight = 'bold';
-    button.style.border = '3px solid white';  // Add border
+    button.style.border = '3px solid white';
     button.style.borderRadius = '10px';
     button.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-    button.style.zIndex = '9999';        // Make sure it's on very top
+    button.style.zIndex = '9999';
     button.style.backgroundColor = '#4CAF50';
     button.style.color = 'white';
-    button.style.textShadow = '2px 2px 4px rgba(0,0,0,0.3)';  // Text shadow
+    button.style.textShadow = '2px 2px 4px rgba(0,0,0,0.3)';
     button.style.fontFamily = 'Arial, sans-serif';
     button.innerHTML = `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
     button.onclick = purchaseInfiniteJump;
@@ -880,9 +1015,10 @@ function updateInfiniteJumpButton() {
     }
 }
 
-// Add createObstacle function
+// Modify createObstacle function to prevent impossible combinations
 function createObstacle() {
     const lastObstacle = obstacles[obstacles.length - 1];
+    const difficulty = DIFFICULTY_LEVELS[currentDifficulty];
     
     const maxJumpDistance = 280;
     const minJumpDistance = 220;
@@ -890,27 +1026,136 @@ function createObstacle() {
     const minX = lastObstacle ? lastObstacle.x + minJumpDistance : 100;
     const maxX = lastObstacle ? lastObstacle.x + maxJumpDistance : canvas.width - 300;
     
-    const minHeight = lastObstacle ? Math.max(250, lastObstacle.y - 40) : 330;
-    const maxHeight = lastObstacle ? Math.min(370, lastObstacle.y + 40) : 330;
-    
-    const obstacle = {
-        type: OBSTACLE_TYPES.PLATFORM,
-        x: Math.random() * (maxX - minX) + minX,
-        y: Math.random() * (maxHeight - minHeight) + minHeight,
-        width: 150,
-        height: 15,
-        spikes: [],
-        scored: false
-    };
+    // Check if last obstacle was a low platform
+    const lastWasLowPlatform = lastObstacle && 
+                              lastObstacle.type === OBSTACLE_TYPES.PLATFORM && 
+                              lastObstacle.y > 400;
 
-    if (Math.random() < 0.3) {
-        const spikePos = Math.random() * (obstacle.width - 60) + 10;
-        obstacle.spikes.push({
-            relativeX: spikePos,
-            width: 30,
-            height: 25
-        });
+    // Don't create pillar after low platform
+    const canCreatePillar = !lastWasLowPlatform && Math.random() < difficulty.pillarChance;
+    
+    if (canCreatePillar) {
+        const obstacle = {
+            type: OBSTACLE_TYPES.PILLAR,
+            x: Math.random() * (maxX - minX) + minX,
+            y: 530,
+            width: difficulty.pillarWidth,
+            height: 250,
+            spikes: [],
+            scored: false
+        };
+        obstacles.push(obstacle);
+    } else {
+        const minHeight = lastObstacle ? Math.max(250, lastObstacle.y - 40) : 330;
+        const maxHeight = lastObstacle ? Math.min(370, lastObstacle.y + 40) : 330;
+        
+        const obstacle = {
+            type: OBSTACLE_TYPES.PLATFORM,
+            x: Math.random() * (maxX - minX) + minX,
+            y: Math.random() * (maxHeight - minHeight) + minHeight,
+            width: difficulty.platformWidth,
+            height: 15,
+            spikes: [],
+            scored: false
+        };
+
+        if (Math.random() < difficulty.spikeChance) {
+            const spikePos = Math.random() * (obstacle.width - 60) + 10;
+            obstacle.spikes.push({
+                relativeX: spikePos,
+                width: 30,
+                height: 25
+            });
+        }
+
+        obstacles.push(obstacle);
+    }
+}
+
+// Modify createLevelSelectorButton function
+function createLevelSelectorButton() {
+    const button = document.createElement('button');
+    button.id = 'levelSelectorBtn';
+    button.style.position = 'fixed';
+    button.style.top = '50px';
+    button.style.left = '50%';
+    button.style.transform = 'translateX(-50%)';
+    button.style.padding = '15px 30px';
+    button.style.fontSize = '24px';
+    button.style.fontWeight = 'bold';
+    button.style.border = '3px solid white';
+    button.style.borderRadius = '10px';
+    button.style.backgroundColor = '#4CAF50';
+    button.style.color = 'white';
+    button.style.zIndex = '9999';
+    button.innerHTML = '🎮 Select Difficulty';
+    button.onclick = showLevelSelector;
+    document.body.appendChild(button);
+}
+
+// Modify showLevelSelector function to handle pausing
+function showLevelSelector() {
+    // Remove existing selector if any
+    const existingSelector = document.getElementById('levelSelector');
+    if (existingSelector) {
+        existingSelector.remove();
+        if (isPaused) {
+            togglePause(); // Resume game if closing selector
+        }
+        return;
     }
 
-    obstacles.push(obstacle);
+    if (!isPaused && isGameStarted) {
+        togglePause(); // Pause game when opening selector
+    }
+
+    const selector = document.createElement('div');
+    selector.id = 'levelSelector';
+    selector.style.position = 'fixed';
+    selector.style.top = '110px';  // Move popup below buttons
+    selector.style.left = '50%';   // Center align
+    selector.style.transform = 'translateX(-50%)';
+    selector.style.padding = '20px';
+    selector.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    selector.style.borderRadius = '10px';
+    selector.style.zIndex = '10000';
+    selector.style.display = 'flex';
+    selector.style.flexDirection = 'column';
+    selector.style.gap = '10px';
+
+    Object.entries(DIFFICULTY_LEVELS).forEach(([level, config]) => {
+        const levelButton = document.createElement('button');
+        levelButton.style.padding = '10px 20px';
+        levelButton.style.fontSize = '20px';
+        levelButton.style.fontWeight = 'bold';
+        levelButton.style.border = '2px solid white';
+        levelButton.style.borderRadius = '5px';
+        levelButton.style.backgroundColor = level === currentDifficulty ? '#45a049' : '#4CAF50';
+        levelButton.style.color = 'white';
+        levelButton.style.cursor = 'pointer';
+        levelButton.innerHTML = config.name;
+        levelButton.onclick = () => {
+            currentDifficulty = level;
+            selector.remove();
+            if (isPaused) {
+                togglePause(); // Resume game after selecting difficulty
+            }
+            // Show confirmation message
+            const msg = document.createElement('div');
+            msg.style.position = 'fixed';
+            msg.style.top = '250px';  // Changed from 310px to 250px
+            msg.style.left = '50%';
+            msg.style.transform = 'translateX(-50%)';
+            msg.style.color = 'white';
+            msg.style.fontSize = '20px';
+            msg.style.fontWeight = 'bold';
+            msg.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+            msg.innerHTML = `Difficulty: ${config.name}`;
+            document.body.appendChild(msg);
+            setTimeout(() => msg.remove(), 1500);
+        };
+        selector.appendChild(levelButton);
+    });
+
+    document.body.appendChild(selector);
 } 
