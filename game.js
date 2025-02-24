@@ -111,27 +111,35 @@ let currentColorSet = 'red';  // Changed from 'purple' to 'red'
 const DIFFICULTY_LEVELS = {
     EASY: {
         name: 'Easy',
-        platformWidth: 200,
-        pillarWidth: 60,
-        spikeChance: 0.1,
-        pillarChance: 0.1,
-        speed: 2.0
+        platformWidth: 180,    // Still generous but not too wide
+        pillarWidth: 60,      // Good width for landing
+        spikeChance: 0.1,     // Some spikes for challenge
+        pillarChance: 0.15,   // More pillars than before
+        speed: 2.2            // Slightly faster
     },
     NORMAL: {
         name: 'Normal',
-        platformWidth: 150,
-        pillarWidth: 40,
-        spikeChance: 0.3,
-        pillarChance: 0.2,
-        speed: 2.5
+        platformWidth: 150,    // Standard width
+        pillarWidth: 45,      // Requires more precision
+        spikeChance: 0.25,    // More spikes
+        pillarChance: 0.2,    // Regular pillar frequency
+        speed: 2.5            // Standard speed
     },
     HARD: {
         name: 'Hard',
-        platformWidth: 130,    // Increased from 120 to 130
-        pillarWidth: 40,      // Increased from 35 to 40
-        spikeChance: 0.3,     // Decreased from 0.35 to 0.3
-        pillarChance: 0.2,    // Decreased from 0.25 to 0.2
-        speed: 2.7            // Decreased from 2.8 to 2.7
+        platformWidth: 140,    // Slightly challenging
+        pillarWidth: 40,      // Requires precision
+        spikeChance: 0.3,     // Frequent spikes
+        pillarChance: 0.25,   // More pillars
+        speed: 2.7            // Faster pace
+    },
+    INSANE: {
+        name: '💀 INSANE 💀',
+        platformWidth: 120,     // Increased from 100 to 120
+        pillarWidth: 38,       // Increased from 35 to 38
+        spikeChance: 0.35,     // Decreased from 0.4 to 0.35
+        pillarChance: 0.3,     // Decreased from 0.35 to 0.3
+        speed: 2.8             // Decreased from 3.0 to 2.8
     }
 };
 let currentDifficulty = 'NORMAL';
@@ -272,13 +280,13 @@ function drawPlayer() {
     }
     
     ctx.restore();
-    
+
     // Update trail with matching gradient
     player.trail.unshift({ x: player.x, y: player.y, rotation: player.rotation });
     if (player.trail.length > 8) player.trail.pop();
     
     player.trail.forEach((pos, index) => {
-        const alpha = (1 - index/8) * 0.3;
+        const alpha = (1 - index/8) * 0.3 ;
         ctx.save();
         ctx.translate(pos.x + player.width/2, pos.y + player.height/2);
         ctx.rotate(pos.rotation);
@@ -301,7 +309,7 @@ function drawPlayer() {
             
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            const x1 = Math.cos(angle) * flameLength;
+           const x1 = Math.cos(angle) * flameLength;
             const y1 = Math.sin(angle) * flameLength;
             const x2 = Math.cos(angle + 0.2) * (flameLength * 0.7);
             const y2 = Math.sin(angle + 0.2) * (flameLength * 0.7);
@@ -322,30 +330,130 @@ function drawPlayer() {
     });
 }
 
-// Modify drawObstacles function
+// Modify drawObstacles function to properly draw normal pillars
 function drawObstacles() {
     obstacles.forEach(obstacle => {
         if (obstacle.type === OBSTACLE_TYPES.PILLAR) {
-            // Draw pillar with lava-like gradient
+            // Draw normal pillar
             const pillarGradient = ctx.createLinearGradient(
                 obstacle.x,
                 obstacle.y - obstacle.height,
                 obstacle.x,
                 obstacle.y
             );
-            pillarGradient.addColorStop(0, '#8B0000');  // Dark red at top
-            pillarGradient.addColorStop(0.7, '#FF4500');  // Orange-red
-            pillarGradient.addColorStop(1, '#FF0000');    // Bright red at bottom
+            pillarGradient.addColorStop(0, '#4a4a4a');  // Darker base
+            pillarGradient.addColorStop(0.5, '#666666'); // Mid-tone
+            pillarGradient.addColorStop(1, '#808080');   // Lighter edge
+            
             ctx.fillStyle = pillarGradient;
             ctx.fillRect(obstacle.x, obstacle.y - obstacle.height, obstacle.width, obstacle.height);
+
+            // Draw rock texture
+            if (obstacle.rockPattern) {
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 0.5;
+
+                // Draw cracks
+                obstacle.rockPattern.cracks.forEach(crack => {
+                    const startX = obstacle.x + crack.startX * obstacle.width;
+                    const startY = obstacle.y - obstacle.height + crack.startY * obstacle.height;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    
+                    let currentX = startX;
+                    let currentY = startY;
+                    
+                    crack.offsets.forEach(offset => {
+                        currentX += offset.x;
+                        currentY += offset.y;
+                        
+                        if (currentX >= obstacle.x && 
+                            currentX <= obstacle.x + obstacle.width &&
+                            currentY >= obstacle.y - obstacle.height &&
+                            currentY <= obstacle.y) {
+                            ctx.lineTo(currentX, currentY);
+                        }
+                    });
+                    
+                    ctx.stroke();
+                });
+
+                // Draw spots
+                obstacle.rockPattern.spots.forEach(spot => {
+                    const x = obstacle.x + spot.x * obstacle.width;
+                    const y = obstacle.y - obstacle.height + spot.y * obstacle.height;
+                    
+                    ctx.fillStyle = 'rgba(50, 50, 50, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, spot.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        } else if (obstacle.type === 'flappyPillar') {
+            // Draw flappy pillar
+            const pillarGradient = ctx.createLinearGradient(
+                obstacle.x,
+                obstacle.y,
+                obstacle.x,
+                obstacle.y + obstacle.height
+            );
+            pillarGradient.addColorStop(0, '#4a4a4a');  // Darker base
+            pillarGradient.addColorStop(0.5, '#666666'); // Mid-tone
+            pillarGradient.addColorStop(1, '#808080');   // Lighter edge
             
-            // Add glow effect
-            ctx.shadowColor = '#FF0000';
-            ctx.shadowBlur = 10;
-            ctx.fillRect(obstacle.x, obstacle.y - obstacle.height, obstacle.width, obstacle.height);
-            ctx.shadowBlur = 0;
+            ctx.fillStyle = pillarGradient;
+            ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+
+            // Draw rock texture
+            if (obstacle.rockPattern) {
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 0.5;
+
+                // Draw cracks
+                obstacle.rockPattern.cracks.forEach(crack => {
+                    const startX = obstacle.x + crack.startX * obstacle.width;
+                    const startY = obstacle.y + crack.startY * obstacle.height;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    
+                    let currentX = startX;
+                    let currentY = startY;
+                    
+                    crack.offsets.forEach(offset => {
+                        currentX += offset.x;
+                        currentY += offset.y;
+                        
+                        if (currentX >= obstacle.x && 
+                            currentX <= obstacle.x + obstacle.width &&
+                            currentY >= obstacle.y &&
+                            currentY <= obstacle.y + obstacle.height) {
+                            ctx.lineTo(currentX, currentY);
+                        }
+                    });
+                    
+                    ctx.stroke();
+                });
+
+                // Draw spots
+                obstacle.rockPattern.spots.forEach(spot => {
+                    const x = obstacle.x + spot.x * obstacle.width;
+                    const y = obstacle.y + spot.y * obstacle.height;
+                    
+                    ctx.fillStyle = 'rgba(50, 50, 50, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, spot.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'rgba(200, 200, 200, 0.2)';
+                    ctx.beginPath();
+                    ctx.arc(x - 1, y - 1, spot.size * 0.8, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
         } else {
-            // Draw normal platform
+            // Normal platform drawing code...
             const platformGradient = ctx.createLinearGradient(
                 obstacle.x,
                 obstacle.y,
@@ -487,19 +595,12 @@ function drawMenu() {
     ctx.font = '32px Arial';
     ctx.textAlign = 'center';  // Center align text
     ctx.fillText('The Floor Is Lava', canvas.width/2, 150);
-    ctx.font = '16px Arial';
-    ctx.fillText('Click Start or Press Space to Play', canvas.width/2, 190);
     ctx.textAlign = 'left';  // Reset text alignment
 }
 
-// Modify handleJump function to check entire pillar
+// Modify handleJump function
 function handleJump() {
-    if (!isGameStarted) {
-        startGame();
-        return;
-    }
-    
-    if (isPaused || countdown > 0) {
+    if (!isGameStarted || isPaused || countdown > 0) {
         return;
     }
 
@@ -509,20 +610,20 @@ function handleJump() {
         return;
     }
 
-    // Check if on platform or pillar
+    if (isFlappyMode) {
+        // Use regular jump force and don't check for platform
+        player.velocity = jumpForce;
+        return;
+    }
+
+    // Normal mode jump check
     const onPlatform = obstacles.some(obstacle => {
         if (obstacle.type === OBSTACLE_TYPES.PILLAR) {
-            // Check if on top of pillar OR standing on ground level of pillar
-            return (player.y + player.height >= obstacle.y - obstacle.height - 5 && 
+            return player.y + player.height >= obstacle.y - obstacle.height - 5 && 
                    player.y + player.height <= obstacle.y - obstacle.height + 5 && 
                    player.x + player.width > obstacle.x && 
-                   player.x < obstacle.x + obstacle.width) ||
-                   (player.y + player.height >= obstacle.y - 5 &&
-                   player.y + player.height <= obstacle.y + 5 &&
-                   player.x + player.width > obstacle.x &&
-                   player.x < obstacle.x + obstacle.width);
+                   player.x < obstacle.x + obstacle.width;
         } else {
-            // Normal platform check
             return player.y + player.height >= obstacle.y - 5 && 
                    player.y + player.height <= obstacle.y + 5 && 
                    player.x + player.width > obstacle.x && 
@@ -532,11 +633,144 @@ function handleJump() {
 
     if (hasInfiniteJump || onPlatform) {
         player.velocity = jumpForce;
-        player.jumping = true;
     }
 }
 
-// Modify update function to check entire pillar collision
+// Add to state variables at the top
+let platform25 = null;  // Store the platform that appears at score 25
+
+// Modify FLAPPY_PILLAR_CONFIG to be difficulty-based
+const FLAPPY_PILLAR_CONFIG = {
+    EASY: {
+        width: 60,
+        gap: 200,    // Lots of vertical space
+        spacing: 400  // Lots of horizontal space
+    },
+    NORMAL: {
+        width: 60,
+        gap: 170,    // Moderate vertical space
+        spacing: 350  // Moderate horizontal space
+    },
+    HARD: {
+        width: 60,
+        gap: 140,    // Less vertical space
+        spacing: 300  // Less horizontal space
+    },
+    INSANE: {
+        width: 60,
+        gap: 110,    // Barely enough space
+        spacing: 250  // Very close together
+    }
+};
+
+// Modify createObstacle function to use difficulty-based config
+function createObstacle() {
+    if (isFlappyMode) {
+        const lastObstacle = obstacles[obstacles.length - 1];
+        const config = FLAPPY_PILLAR_CONFIG[currentDifficulty];
+        const minX = lastObstacle ? lastObstacle.x + config.spacing : canvas.width;
+        
+        const gapStart = Math.random() * (canvas.height - config.gap - 200) + 100;
+        
+        // Add rock texture to both pillars
+        const createRockPattern = () => ({
+            cracks: Array.from({ length: 30 }, () => ({
+                startX: Math.random(),
+                startY: Math.random(),
+                segments: Math.floor(Math.random() * 3) + 2,
+                offsets: Array.from({ length: 5 }, () => ({
+                    x: (Math.random() - 0.5) * 10,
+                    y: (Math.random() - 0.5) * 5
+                }))
+            })),
+            spots: Array.from({ length: 10 }, () => ({
+                x: Math.random(),
+                y: Math.random(),
+                size: Math.random() * 4 + 2
+            }))
+        });
+
+        // Create top pillar with rock texture
+        obstacles.push({
+            type: 'flappyPillar',
+            x: minX,
+            y: 0,
+            width: config.width,
+            height: gapStart,
+            spikes: [],
+            scored: false,
+            rockPattern: createRockPattern()
+        });
+
+        // Create bottom pillar with rock texture
+        obstacles.push({
+            type: 'flappyPillar',
+            x: minX,
+            y: gapStart + config.gap,
+            width: config.width,
+            height: canvas.height - (gapStart + config.gap),
+            spikes: [],
+            scored: false,
+            rockPattern: createRockPattern()
+        });
+    } else {
+        const lastObstacle = obstacles[obstacles.length - 1];
+        const difficulty = DIFFICULTY_LEVELS[currentDifficulty];
+        
+        // Special adjustments for INSANE mode
+        const isInsane = currentDifficulty === 'INSANE';
+        const maxJumpDistance = isInsane ? 200 : 210;
+        const minJumpDistance = isInsane ? 165 : 170;
+        
+        // Ensure minimum distance from spawn pillar
+        const spawnPillarEnd = canvas.width * 0.25 + 300; // End of spawn pillar
+        const minX = lastObstacle ? 
+            Math.max(lastObstacle.x + minJumpDistance, spawnPillarEnd + 100) : 
+            spawnPillarEnd + 100;
+        const maxX = lastObstacle ? 
+            lastObstacle.x + maxJumpDistance : 
+            canvas.width - 300;
+
+        // Calculate height based on last obstacle for smooth transitions
+        const lastHeight = lastObstacle ? lastObstacle.height : 200;
+        const minHeight = Math.max(150, lastHeight - 50);
+        const maxHeight = Math.min(300, lastHeight + 50);
+        const newHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+
+        // Always create pillar with varying height
+        obstacles.push({
+            type: OBSTACLE_TYPES.PILLAR,
+            x: Math.random() * (maxX - minX) + minX,
+            y: 530,
+            width: difficulty.pillarWidth,
+            height: newHeight,
+            spikes: [],
+            scored: false,
+            rockPattern: {
+                cracks: Array.from({ length: 30 }, () => ({
+                    startX: Math.random(),
+                    startY: Math.random(),
+                    segments: Math.floor(Math.random() * 3) + 2,
+                    offsets: Array.from({ length: 5 }, () => ({
+                        x: (Math.random() - 0.5) * 10,
+                        y: (Math.random() - 0.5) * 5
+                    }))
+                })),
+                spots: Array.from({ length: 10 }, () => ({
+                    x: Math.random(),
+                    y: Math.random(),
+                    size: Math.random() * 4 + 2
+                }))
+            }
+        });
+    }
+}
+
+// Add to state variables at the top
+let transitionX = null;
+let hasPassedTransition = false;
+
+// Modify update function to change transition point
 function update() {
     if (!isGameStarted || isPaused || countdown > 0) {
         return;
@@ -546,27 +780,66 @@ function update() {
         return;
     }
 
-    // Continuous jump check without cooldown
-    if (isMouseDown) {
+    // If we hit score 50, set transition point (changed from 25)
+    if (score === 50 && !isFlappyMode && transitionX === null) {
+        transitionX = canvas.width + 100; // Start off screen
+    }
+
+    // Move transition line with game speed
+    if (transitionX !== null) {
+        transitionX -= currentGameSpeed;
+
+        // Check if player passes through the line
+        if (!hasPassedTransition && player.x > transitionX) {
+            isFlappyMode = true;
+            hasPassedTransition = true;
+            createTransitionEffect();
+            
+            // Clear all existing platforms
+            obstacles.length = 0;
+            
+            // Create initial flappy pillars
+            for (let i = 0; i < 3; i++) {
+                createObstacle();
+            }
+        }
+    }
+
+    // Check for continuous jumping only before flappy mode
+    if (!isFlappyMode && isMouseDown) {
         handleJump();
     }
 
-    // Update game speed based on score
-    currentGameSpeed = Math.min(
-        MAX_GAME_SPEED,
-        INITIAL_GAME_SPEED + (score * SPEED_INCREMENT)
-    );
+    // Apply physics based on mode
+    if (isFlappyMode) {
+        // Use same gravity and physics as normal mode
+        player.velocity += gravity;
+        player.velocity = Math.min(player.velocity, MAX_VELOCITY);
+        player.y += player.velocity;
+        
+        // Keep player in bounds
+        if (player.y < 0) {
+            player.y = 0;
+            player.velocity = 0;
+        }
+        
+        // Death on ground touch in flappy mode
+        if (player.y + player.height >= 530) {
+            startCountdown();
+            return;
+        }
+    } else {
+        // Normal mode physics
+        player.velocity += gravity;
+        player.velocity = Math.min(player.velocity, MAX_VELOCITY);
+        player.y += player.velocity;
 
-    // Apply gravity
-    player.velocity += gravity;
-    player.velocity = Math.min(player.velocity, MAX_VELOCITY);
-    player.y += player.velocity;
-
-    // Check for lava collision at new height
-    if (player.y + player.height >= 530) {
-        player.y = 530 - player.height;
-        startCountdown();
-        return;
+        // Normal ground collision
+        if (player.y + player.height >= 530) {
+            player.y = 530 - player.height;
+            startCountdown();
+            return;
+        }
     }
 
     // Update obstacles with auto-scrolling
@@ -575,67 +848,75 @@ function update() {
         const obstacle = obstacles[i];
         obstacle.x -= currentGameSpeed;
         
-        if (obstacle.type === OBSTACLE_TYPES.PILLAR) {
-            // Check collision with pillar sides only
-            if (player.x + player.width > obstacle.x &&
-                player.x < obstacle.x + obstacle.width &&
-                player.y + player.height > obstacle.y - obstacle.height &&
-                player.y < obstacle.y) {
-                
-                // Only die if hitting the sides
-                const hitLeft = Math.abs(player.x + player.width - obstacle.x) < 10;
-                const hitRight = Math.abs(player.x - (obstacle.x + obstacle.width)) < 10;
-                
-                if (hitLeft || hitRight) {
+        // Skip collision checks if infinite jump is active
+        if (!hasInfiniteJump) {
+            // Handle collisions for both pillar types
+            if (obstacle.type === OBSTACLE_TYPES.PILLAR) {
+                // Original pillar collision
+                const onPillarTop = 
+                    player.y + player.height >= obstacle.y - obstacle.height - 5 && 
+                    player.y + player.height <= obstacle.y - obstacle.height + 5 && 
+                    player.x + player.width > obstacle.x && 
+                    player.x < obstacle.x + obstacle.width;
+
+                const hitPillarSide = 
+                    player.x + player.width > obstacle.x &&
+                    player.x < obstacle.x + obstacle.width &&
+                    player.y + player.height > obstacle.y - obstacle.height + 15 &&
+                    player.y < obstacle.y;
+
+                if (onPillarTop) {
+                    isOnPlatform = true;
+                    player.y = obstacle.y - obstacle.height - player.height;
+                    player.velocity = 0;
+                } else if (hitPillarSide) {
                     startCountdown();
                     return;
                 }
-            }
-            
-            // Check if standing on top of pillar
-            if (player.y + player.height >= obstacle.y - obstacle.height - 5 && 
-                player.y + player.height <= obstacle.y - obstacle.height + 5 && 
-                player.x + player.width > obstacle.x && 
-                player.x < obstacle.x + obstacle.width) {
-                isOnPlatform = true;
-                player.y = obstacle.y - obstacle.height - player.height;
-                player.velocity = 0;
-            }
-        } else {
-            // Normal platform collision
-            if (player.y + player.height >= obstacle.y - 5 && 
-                player.y + player.height <= obstacle.y + 5 && 
-                player.x + player.width > obstacle.x && 
-                player.x < obstacle.x + obstacle.width) {
-                isOnPlatform = true;
-                player.y = obstacle.y - player.height;
-                player.velocity = 0;
+            } else if (obstacle.type === 'flappyPillar') {
+                // Flappy pillar collision
+                const hitPillar = 
+                    player.x + player.width > obstacle.x &&
+                    player.x < obstacle.x + obstacle.width &&
+                    player.y + player.height > obstacle.y &&
+                    player.y < obstacle.y + obstacle.height;
+
+                if (hitPillar) {
+                    startCountdown();
+                    return;
+                }
             }
         }
         
         // Remove obstacles that go off screen and add to score
         if (obstacle.x + obstacle.width < 0) {
-            obstacles.splice(i, 1);
-            score++;
-            
-            // Award coins based on difficulty for every multiple of 10
-            if (score % 10 === 0) {
-                let coinReward;
-                switch(currentDifficulty) {
-                    case 'HARD':
-                        coinReward = 30;
-                        break;
-                    case 'NORMAL':
-                        coinReward = 20;
-                        break;
-                    case 'EASY':
-                    default:
-                        coinReward = 10;
-                        break;
+            if (!obstacle.scored) {
+                score++;
+                obstacle.scored = true;
+                
+                // Award coins based on difficulty for every multiple of 10
+                if (score % 10 === 0) {
+                    let coinReward;
+                    switch(currentDifficulty) {
+                        case 'INSANE':
+                            coinReward = 40;  // Increased from 30 to 40 for INSANE
+                            break;
+                        case 'HARD':
+                            coinReward = 30;
+                            break;
+                        case 'NORMAL':
+                            coinReward = 20;
+                            break;
+                        case 'EASY':
+                        default:
+                            coinReward = 10;
+                            break;
+                    }
+                    coins += coinReward;
+                    localStorage.setItem('coins', coins.toString());
                 }
-                coins += coinReward;
-                localStorage.setItem('coins', coins.toString());
             }
+            obstacles.splice(i, 1);
         }
         
         if (checkCollision(player, obstacle)) {
@@ -658,10 +939,14 @@ function update() {
 
     // Check for win at 100 and award coins and wins based on difficulty
     if (score >= 100) {
-        coins += 50;  // Award 50 coins for winning
+        coins += 50;  // Base reward
         
-        // Award wins based on difficulty
+        // Award wins and coins based on difficulty
         switch(currentDifficulty) {
+            case 'INSANE':
+                wins += 5;  // 5 wins for insane
+                coins += 400; // Increased from 50 to 400 extra coins for insane
+                break;
             case 'HARD':
                 wins += 3;  // 3 wins for hard
                 break;
@@ -683,6 +968,18 @@ function update() {
             }, 3000);
         }
         return;
+    }
+
+    // Only check ground collision if infinite jump is not active
+    if (!hasInfiniteJump && player.y + player.height >= 530) {
+        if (isFlappyMode) {
+            startCountdown();
+            return;
+        } else {
+            player.y = 530 - player.height;
+            startCountdown();
+            return;
+        }
     }
 }
 
@@ -768,6 +1065,34 @@ function draw() {
         ctx.textAlign = 'left';
         return;
     }
+
+    if (portalSpawned) {
+        drawPortal();
+    }
+
+    // Draw transition line
+    if (transitionX !== null) {
+        const lineGradient = ctx.createLinearGradient(
+            transitionX, 0,
+            transitionX, canvas.height
+        );
+        lineGradient.addColorStop(0, 'rgba(147, 0, 211, 0)');  // Transparent purple at top
+        lineGradient.addColorStop(0.5, 'rgba(147, 0, 211, 0.8)');  // Solid purple in middle
+        lineGradient.addColorStop(1, 'rgba(147, 0, 211, 0)');  // Transparent purple at bottom
+        
+        ctx.fillStyle = lineGradient;
+        ctx.fillRect(transitionX - 2, 0, 4, canvas.height);
+
+        // Add sparkle effects
+        const time = Date.now() / 1000;
+        for (let i = 0; i < 5; i++) {
+            const y = (Math.sin(time * 2 + i) + 1) * canvas.height / 2;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.arc(transitionX, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
 }
 
 // Simplify game loop
@@ -777,12 +1102,15 @@ function gameLoop() {
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// Modify window.onload
+// Modify window.onload to only use Start button
 window.onload = function() {
-    // Set up controls
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
-    
+    // Set up keyboard controls
+document.addEventListener('keydown', (event) => {
+        if (isGameStarted && (event.code === 'Space' || event.code === 'ArrowUp')) {
+        handleJump();
+    }
+});
+
     // Set up buttons
     const startBtn = document.getElementById('startBtn');
     const pauseBtn = document.getElementById('pauseBtn');
@@ -790,14 +1118,23 @@ window.onload = function() {
     startBtn.onclick = startGame;
     pauseBtn.onclick = togglePause;
 
-    // Add mouse and touch controls
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('touchstart', handleTouchStart);
+    // Single set of mouse controls
+    canvas.addEventListener('mousedown', (event) => {
+        if (isGameStarted && event.button === 0) { // Left mouse button
+            isMouseDown = true;
+            handleJump();  // Immediate first jump
+        }
+    });
 
-    // Update mouse controls
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('mouseleave', () => isMouseDown = false);
+    canvas.addEventListener('mouseup', (event) => {
+        if (event.button === 0) {
+            isMouseDown = false;
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        isMouseDown = false;
+    });
 
     // Draw initial menu and start game loop
     draw();
@@ -806,10 +1143,9 @@ window.onload = function() {
     createColorPickerButton();
     createLevelSelectorButton();
 
-    // Add page visibility handler
     document.addEventListener('visibilitychange', () => {
         if (document.hidden && isGameStarted && !isPaused) {
-            togglePause();  // Auto-pause when page is hidden
+            togglePause();
         }
     });
 };
@@ -828,8 +1164,8 @@ function handleKeyUp(event) {
 // Simplify startGame function
 function startGame() {
     if (!isGameStarted) {
-        isGameStarted = true;
-        resetGame();
+    isGameStarted = true;
+    resetGame();
     }
 }
 
@@ -857,6 +1193,12 @@ function resetGame() {
         clearTimeout(winTimer);
         winTimer = null;
     }
+    isFlappyMode = false;
+    portalSpawned = false;
+    portalObstacle = null;
+    platform25 = null;
+    transitionX = null;
+    hasPassedTransition = false;
 }
 
 // Add new function to toggle pause
@@ -890,16 +1232,32 @@ function startCountdown() {
     }, 1000);
 }
 
-// Make initial platform more forgiving
+// Modify createInitialPlatform to create a wider initial pillar
 function createInitialPlatform() {
     obstacles.push({
-        type: OBSTACLE_TYPES.PLATFORM,
+        type: OBSTACLE_TYPES.PILLAR,
         x: canvas.width * 0.25,
-        y: 330,  // Lower starting platform (was 280)
-        width: 400,
-        height: 15,
+        y: 530,
+        width: 300,  // Increased from 100 to 300
+        height: 200,
         spikes: [],
-        scored: false
+        scored: false,
+        rockPattern: {
+            cracks: Array.from({ length: 30 }, () => ({
+                startX: Math.random(),
+                startY: Math.random(),
+                segments: Math.floor(Math.random() * 3) + 2,
+                offsets: Array.from({ length: 5 }, () => ({
+                    x: (Math.random() - 0.5) * 10,
+                    y: (Math.random() - 0.5) * 5
+                }))
+            })),
+            spots: Array.from({ length: 10 }, () => ({
+                x: Math.random(),
+                y: Math.random(),
+                size: Math.random() * 4 + 2
+            }))
+        }
     });
 }
 
@@ -913,37 +1271,6 @@ function cleanup() {
     }
     gameMusic.pause();  // Stop music when cleaning up
     gameMusic.currentTime = 0;
-}
-
-// Add mouse click control back
-canvas.addEventListener('mousedown', (event) => {
-    if (event.button === 0) { // Left mouse button
-        handleJump();
-    }
-});
-
-// Add touch support for mobile back
-canvas.addEventListener('touchstart', (event) => {
-    event.preventDefault(); // Prevent scrolling
-    handleJump();
-});
-
-// Add these helper functions
-function handleMouseDown(event) {
-    if (event.button === 0) { // Left mouse button
-        isMouseDown = true;
-    }
-}
-
-function handleMouseUp(event) {
-    if (event.button === 0) { // Left mouse button
-        isMouseDown = false;
-    }
-}
-
-function handleTouchStart(event) {
-    event.preventDefault(); // Prevent scrolling
-    handleJump();
 }
 
 // Keep coin functions
@@ -1012,63 +1339,6 @@ function updateInfiniteJumpButton() {
             '<span style="font-size: 24px">🚀 INFINITE JUMP ACTIVE!</span>' : 
             `<span style="font-size: 24px">🚀 INFINITE JUMP (${INFINITE_JUMP_COST} COINS)</span>`;
         button.style.cursor = (coins >= INFINITE_JUMP_COST && !hasInfiniteJump) ? 'pointer' : 'not-allowed';
-    }
-}
-
-// Modify createObstacle function to prevent impossible combinations
-function createObstacle() {
-    const lastObstacle = obstacles[obstacles.length - 1];
-    const difficulty = DIFFICULTY_LEVELS[currentDifficulty];
-    
-    const maxJumpDistance = 280;
-    const minJumpDistance = 220;
-    
-    const minX = lastObstacle ? lastObstacle.x + minJumpDistance : 100;
-    const maxX = lastObstacle ? lastObstacle.x + maxJumpDistance : canvas.width - 300;
-    
-    // Check if last obstacle was a low platform
-    const lastWasLowPlatform = lastObstacle && 
-                              lastObstacle.type === OBSTACLE_TYPES.PLATFORM && 
-                              lastObstacle.y > 400;
-
-    // Don't create pillar after low platform
-    const canCreatePillar = !lastWasLowPlatform && Math.random() < difficulty.pillarChance;
-    
-    if (canCreatePillar) {
-        const obstacle = {
-            type: OBSTACLE_TYPES.PILLAR,
-            x: Math.random() * (maxX - minX) + minX,
-            y: 530,
-            width: difficulty.pillarWidth,
-            height: 250,
-            spikes: [],
-            scored: false
-        };
-        obstacles.push(obstacle);
-    } else {
-        const minHeight = lastObstacle ? Math.max(250, lastObstacle.y - 40) : 330;
-        const maxHeight = lastObstacle ? Math.min(370, lastObstacle.y + 40) : 330;
-        
-        const obstacle = {
-            type: OBSTACLE_TYPES.PLATFORM,
-            x: Math.random() * (maxX - minX) + minX,
-            y: Math.random() * (maxHeight - minHeight) + minHeight,
-            width: difficulty.platformWidth,
-            height: 15,
-            spikes: [],
-            scored: false
-        };
-
-        if (Math.random() < difficulty.spikeChance) {
-            const spikePos = Math.random() * (obstacle.width - 60) + 10;
-            obstacle.spikes.push({
-                relativeX: spikePos,
-                width: 30,
-                height: 25
-            });
-        }
-
-        obstacles.push(obstacle);
     }
 }
 
@@ -1158,4 +1428,65 @@ function showLevelSelector() {
     });
 
     document.body.appendChild(selector);
+}
+
+// Add to state variables at the top
+let isFlappyMode = false;
+let portalSpawned = false;
+let portalObstacle = null;  // Will store the portal as a moving obstacle
+
+// Add to state variables at the top
+const PORTAL_SIZE = 100;
+
+// Add to state variables at the top
+const PORTAL_POSITION = {
+    x: canvas.width - 300,  // Fixed position from right side
+    y: 300                  // Fixed height
+};
+
+// Modify drawPortal function to use portal obstacle position
+function drawPortal() {
+    if (!portalObstacle) return;
+
+    // Portal effect
+    const gradient = ctx.createRadialGradient(
+        portalObstacle.x + PORTAL_SIZE/2, portalObstacle.y + PORTAL_SIZE/2, 0,
+        portalObstacle.x + PORTAL_SIZE/2, portalObstacle.y + PORTAL_SIZE/2, PORTAL_SIZE/2
+    );
+    gradient.addColorStop(0, '#8A2BE2');
+    gradient.addColorStop(0.5, '#4B0082');
+    gradient.addColorStop(1, 'transparent');
+    
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(portalObstacle.x + PORTAL_SIZE/2, portalObstacle.y + PORTAL_SIZE/2, PORTAL_SIZE/2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Swirling effect
+    const time = Date.now() / 1000;
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2 + time;
+        const radius = PORTAL_SIZE/4 + Math.sin(time * 2) * 10;
+        ctx.beginPath();
+        ctx.arc(
+            portalObstacle.x + PORTAL_SIZE/2 + Math.cos(angle) * radius,
+            portalObstacle.y + PORTAL_SIZE/2 + Math.sin(angle) * radius,
+            5,
+            0,
+            Math.PI * 2
+        );
+        ctx.fillStyle = '#9400D3';
+        ctx.fill();
+    }
+}
+
+// Add transition effect function
+function createTransitionEffect() {
+    // Create some particles or visual effect to show mode change
+    for (let i = 0; i < 20; i++) {
+        particles.push(new Particle(
+            player.x + player.width/2,
+            player.y + player.height/2
+        ));
+    }
 } 
